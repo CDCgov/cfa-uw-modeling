@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "cfa-uw-modeling"
+version = "0.1.0"
+description = ""
+authors = ["Emily Pollock <ruu7@cdc.gov>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
