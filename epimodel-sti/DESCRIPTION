@@ -1,0 +1,32 @@
+Package: EpiModelSTI
+Type: Package
+Version: 0.0.1.0
+Title: Network-Based Epidemic Modeling of Mpox Transmission based on EpiModelHIV
+Description: Similar to EpiModelHIV, this package provides extensions to our the EpiModel
+  API to allow for simulating transmission dynamics of M. genitalium and Chlamydia tachomatris.
+  Also includes project-specific functions for data cleaning and analysis.
+Depends:
+    R (>= 4.4.0),
+    EpiModel (>= 2.4.0)
+Imports:
+    tergm,
+    ergm (>= 4.3.1),
+    network,
+    networkDynamic (>= 0.11.3),
+    statnet.common,
+    progressr,
+    dplyr,
+    networkLite (>= 1.0.1),
+    collections
+Suggests:
+    knitr,
+    testthat (>= 3.0.0),
+    withr,
+    Rglpk
+Remotes:
+    github::EpiModel/EpiModel@main
+VignetteBuilder: knitr
+RoxygenNote: 7.3.1
+Encoding: UTF-8
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
