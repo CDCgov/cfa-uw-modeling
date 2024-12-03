@@ -75,4 +75,4 @@ fit_i <- netest(nw_inst,
 # save out all three networks as list
 # this becomes input for epimodel code
 est <- list(fit_m, fit_p, fit_i)
-save(est, file = paste0("mgen/data/fit.rda"))
+save(est, file = paste0("mgen/input/fit_temp.rda"))

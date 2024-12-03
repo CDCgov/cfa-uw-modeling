@@ -3,7 +3,7 @@
 
 library(EpiModel)
 # load networks
-load("mgen/data/fit.rda")
+load("mgen/input/fit_temp.rda")
 
 # specify params & simulation controls
 params <- param.net(inf.prob = 1, rec.rate = 1 / 60, act.rate = 1)
