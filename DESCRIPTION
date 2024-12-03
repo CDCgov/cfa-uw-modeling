@@ -1,11 +1,10 @@
-Package: EpiModelSTI
+Package: cfa-uw-modeling
 Type: Package
 Version: 0.0.1.0
-Title: Network-Based Epidemic Modeling of Mpox Transmission based on EpiModelHIV
-Description: Similar to EpiModelHIV, this package provides extensions to our the EpiModel
+Title: Network-Based Epidemic Modeling of Mpox Transmission based on EpiModel
+Description: This package provides extensions to the EpiModel
   API to allow for simulating transmission dynamics of M. genitalium and Chlamydia tachomatris.
-  Also includes project-specific functions for data cleaning and analysis.
-Depends:
+  Also includes project-specific functions for prep and analysis.
     R (>= 4.4.0),
     EpiModel (>= 2.4.0)
 Imports:
@@ -23,8 +22,6 @@ Suggests:
     testthat (>= 3.0.0),
     withr,
     Rglpk
-Remotes:
-    github::EpiModel/EpiModel@main
 VignetteBuilder: knitr
 RoxygenNote: 7.3.1
 Encoding: UTF-8

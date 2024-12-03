@@ -1,12 +1,11 @@
 #' @title Mgen Treatment
 #'
-#' @description
+#' @description treatment
 #'
 #' @param $$
 #'
 #' @export
 #'
-#' @example
 #'
 
 tx_mgen <- function(dat, at) {

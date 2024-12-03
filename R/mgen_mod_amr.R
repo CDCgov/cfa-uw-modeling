@@ -6,8 +6,6 @@
 #'
 #' @export
 #'
-#' @example
-#'
 
 amr_mgen <- function(dat, at) {
   return(dat)

@@ -1,12 +1,10 @@
 #' @title Mgen Testing and Screening
 #'
-#' @description
+#' @description testing and screening
 #'
 #' @param $$
 #'
 #' @export
-#'
-#' @example
 #'
 
 testing_mgen <- function(dat, at) {
