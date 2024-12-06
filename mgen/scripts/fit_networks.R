@@ -9,8 +9,8 @@ num <- 10000
 nw <- network::network.initialize(num, directed = FALSE)
 
 # Set initial attributes
-sex <- rep(c(0, 1), each = num / 2)
-nw <- network::set.vertex.attribute(nw, "sex", sex)
+group <- rep(c(1, 2), each = num / 2)
+nw <- network::set.vertex.attribute(nw, "group", group)
 
 # Network targets (density, duration in days)
 main_tar <- c(2000, 365 * 3)
@@ -19,7 +19,7 @@ once_tar <- c(30, NA)
 
 # Constraints
 constraints <-
-  ~ blocks(attr = ~sex, levels2 = diag(TRUE, 2)) + bd(maxout = 1) + sparse
+  ~ blocks(attr = ~group, levels2 = diag(TRUE, 2)) + bd(maxout = 1) + sparse
 
 
 # 1. Main Model -----------------------------------------------------------

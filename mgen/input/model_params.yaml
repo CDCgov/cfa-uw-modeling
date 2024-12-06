@@ -1,15 +1,22 @@
 default:
+  groups: 2 # females, males
   # epidemic parameters (placeholders!)
-  act_rate_main: 0.8042857
-  act_rate_casual: 0.2342857
-  act_rate_instant: 1
-  mgen_transmissibility: 0.5
-  mgen_latent_period: 7
-  mgen_infectious_period: 120
-  mgen_screening_rate_females: 0.002739726
-  mgen_screening_rate_males: NA
+  act.rate.main: 0.8042857
+  act.rate.casual: 0.2342857
+  act.rate.instant: 1
+  inf.prob: 0.5
+  inf.prob.g2: 0.5
+  exposed.rate: 0.1428571
+  exposed.rate.g2: 0.1428571
+  rec.rate: 0.008333333
+  rec.rate.g2: 0.008333333
+  screening_rate_females: 0.002739726
+  screening_rate_males: NA
   vital: FALSE
   # key simulation control parameters
   nsims: 1
   ncores: 1
   nsteps: 50
+  # initial conditions
+  i.num: 5
+  i.num.g2: 5
