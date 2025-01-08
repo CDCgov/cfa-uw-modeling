@@ -1,13 +1,15 @@
 default:
-  groups: 2 # females, males
+  recov.state: "s"
   # epidemic parameters (placeholders!)
   act.rate.main: 0.8042857
   act.rate.casual: 0.2342857
   act.rate.instant: 1
-  inf.prob: 0.5
-  inf.prob.g2: 0.5
-  exposed.rate: 0.1428571
-  exposed.rate.g2: 0.1428571
+  inf.prob: 0.155
+  inf.prob.g2: 0.155
+  sympt.prob: 0.355
+  sympt.prob.g2: 0.4
+  infectious.rate: 0.07142857
+  infectious.rate.g2: 0.07142857
   rec.rate: 0.008333333
   rec.rate.g2: 0.008333333
   screening_rate_females: 0.002739726
@@ -17,6 +19,8 @@ default:
   nsims: 1
   ncores: 1
   nsteps: 50
+  save.other: "attr"
+  verbose: FALSE
   # initial conditions
   i.num: 5
   i.num.g2: 5
