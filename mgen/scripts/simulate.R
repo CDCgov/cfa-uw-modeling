@@ -11,10 +11,15 @@ load("mgen/input/fit_temp.rda")
 p <- config::get(file = "mgen/input/model_params.yaml", use_parent = FALSE)
 
 call_with_params <- function(f, p, extra = list()) {
-  do.call(f,
-  c(p[intersect(names(formals(f)), 
-  names(p))],
-    extra)
+  do.call(
+    f,
+    c(
+      p[intersect(
+        names(formals(f)),
+        names(p)
+      )],
+      extra
+    )
   )
 }
 
@@ -22,9 +27,13 @@ params <- call_with_params(param.net, p)
 
 inits <- call_with_params(init.net, p)
 
-controls <- call_with_params(control.net, p,
-    list(infection.FUN = transmit_mgen,
-         progress.FUN = progression_mgen))
+controls <- call_with_params(
+  control.net, p,
+  list(
+    infection.FUN = transmit_mgen,
+    progress.FUN = progression_mgen
+  )
+)
 
 # simulate
 sim <- netsim(est, params, inits, controls)
