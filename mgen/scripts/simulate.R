@@ -10,35 +10,29 @@ load("mgen/input/fit_temp.rda")
 # load config file
 p <- config::get(file = "mgen/input/model_params.yaml", use_parent = FALSE)
 
-# specify params & simulation controls
-params <- param.net(
-  recov.state        = p$recov.state,
-  act.rate.main      = p$act.rate.main,
-  act.rate.casual    = p$act.rate.casual,
-  act.rate.inst      = p$act.rate.inst,
-  inf.prob           = p$inf.prob,
-  inf.prob.g2        = p$inf.prob.g2,
-  sympt.prob         = p$sympt.prob,
-  sympt.prob.g2      = p$sympt.prob.g2,
-  infectious.rate    = p$infectious.rate,
-  infectious.rate.g2 = p$infectious.rate.g2,
-  rec.rate           = p$rec.rate,
-  rec.rate.g2        = p$rec.rate.g2
-)
+call_with_params <- function(f, p, extra = list()) {
+  do.call(
+    f,
+    c(
+      p[intersect(
+        names(formals(f)),
+        names(p)
+      )],
+      extra
+    )
+  )
+}
 
-inits <- init.net(
-  i.num    = p$i.num,
-  i.num.g2 = p$i.num.g2
-)
+params <- call_with_params(param.net, p)
 
-controls <- control.net(
-  nsims = p$nsims,
-  nsteps = p$nsteps,
-  ncores = 1,
-  infection.FUN = transmit_mgen,
-  progress.FUN = progression_mgen,
-  save.other = p$save.other,
-  verbose = p$verbose
+inits <- call_with_params(init.net, p)
+
+controls <- call_with_params(
+  control.net, p,
+  list(
+    infection.FUN = transmit_mgen,
+    progress.FUN = progression_mgen
+  )
 )
 
 # simulate
