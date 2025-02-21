@@ -1,6 +1,8 @@
 #####
 
 # Specific to this repo
+data/surveys
+data/*.rds
 
 # Exceptions
 
