@@ -3,18 +3,55 @@ title: Network Dev & Diagnostics
 format: gfm
 author: Emily D. Pollock
 date: 2025-02-25
-params:
-  cores: 10
 ---
 
 ```{r}
 #| label: load data
 #| echo: false
 library(EpiModel)
-load(here::here("networks", "fits", "2025-02-21", nw.rda))
+load(here::here("networks", "fits", "2025-02-21", "nw.rda"))
+source(here::here("networks", "helper_functions.R"))
 main <- est[[1]]
 cas <- est[[2]]
 inst <- est[[3]]
+
+
+l <- readRDS(here::here("data", "nsfg_long.rds"))
+lsvy <- srvyr::as_survey_design(l, weights = weight)
+m_mixmat_unadj <- lsvy |>
+  dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
+  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+  dplyr::group_by(race, alter_race) |>
+  dplyr::summarize(num = srvyr::survey_total(
+    na.rm = TRUE,
+    vartype = NULL
+  )) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(prop = num / sum(num)) |>
+  dplyr::select(-num) |>
+  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+  dplyr::select(-race) |>
+  as.matrix()
+
+main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj, nrow(m_mixmat_unadj))
+
+
+c_mixmat_unadj <- lsvy |>
+  dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race) & curr == 1) |>
+  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+  dplyr::group_by(race, alter_race) |>
+  dplyr::summarize(num = srvyr::survey_total(
+    na.rm = TRUE,
+    vartype = NULL
+  )) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(prop = num / sum(num)) |>
+  dplyr::select(-num) |>
+  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+  dplyr::select(-race) |>
+  as.matrix()
+
+c_race_mixmat <- matrix_symmetrical(c_mixmat_unadj, nrow(c_mixmat_unadj))
 ```
 
 
@@ -24,8 +61,7 @@ Main Network (Marriages, Cohabitations)
 
 ```{r}
 #| label: main diag
-
-main_dynamic <- netdx(main, dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = cores)
+main_dynamic <- netdx(main, dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = 10)
 main_dynamic
 ```
 
@@ -34,7 +70,7 @@ Casual Network
 ```{r}
 #| label: cas diag
 
-cas_dynamic <- netdx(cas, dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = cores)
+cas_dynamic <- netdx(cas, dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = 10)
 cas_dynamic
 ```
 
