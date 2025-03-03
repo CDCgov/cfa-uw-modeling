@@ -5,6 +5,7 @@ data/surveys
 data/*.rds
 
 # Exceptions
+!networks/networks_files/*
 
 # Exclude many data and output file types by default
 
