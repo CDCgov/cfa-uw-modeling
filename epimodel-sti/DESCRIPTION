@@ -26,7 +26,7 @@ Suggests:
 Remotes:
     github::EpiModel/EpiModel@main
 VignetteBuilder: knitr
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Encoding: UTF-8
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

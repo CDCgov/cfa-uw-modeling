@@ -4,7 +4,7 @@ source(here::here("networks", "helper_functions.R"))
 # Required objects in environemnt: params, starting network, seed
 this_seed <- 12345
 x <- yaml::read_yaml(here::here("params", "nw_params.yaml"))
-nw <- generate_init_network(x, seed = this_seed)
+nw <- generate_init_network(x, seed = this_seed, deg_casual = TRUE)
 
 # Estimate Networks ----------------------------------------------
 ## Main ---------------------------------------------------------
@@ -287,3 +287,54 @@ comp |>
   ggplot2::geom_point() +
   ggplot2::geom_smooth(span = 0.75) +
   ggplot2::facet_wrap(~race)
+
+
+casdx <- cas_dynamic$nw
+maindx <- main_dynamic$nw
+datdx <- data.frame(
+  age = floor(casdx %v% "age"),
+  age_group = casdx %v% "age_group",
+  race = casdx %v% "race",
+  d = get_degree(maindx),
+  c = get_degree(casdx)
+)
+
+compdx <- datdx |>
+  dplyr::group_by(age, race) |>
+  dplyr::summarize(
+    main_mod = mean(d),
+    cas_mod = mean(c)
+  ) |>
+  dplyr::left_join(emp, by = c("age", "race")) |>
+  tidyr::pivot_longer(
+    cols = c("main", "main_mod", "cas", "cas_mod"),
+    names_to = c("type"), values_to = "vals"
+  )
+
+compdx |>
+  dplyr::filter(type %in% c("main", "main_mod")) |>
+  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(span = 0.75) +
+  ggplot2::facet_wrap(~race)
+
+compdx |>
+  dplyr::filter(type %in% c("cas", "cas_mod")) |>
+  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(span = 0.75) +
+  ggplot2::facet_wrap(~race)
+
+compdx |>
+  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_smooth(span = 0.75) +
+  ggplot2::facet_wrap(~race) +
+  ggplot2::ggtitle("Comparing Empirical Relationship Activity to Fit Networks") +
+  ggplot2::ylab("Proportion of persons in a given relationship") +
+  ggplot2::xlab("Age")
+
+ggplot2::ggsave(
+  filename = here::here("networks", "fits", Sys.Date(), "post_diagnostics_comps.PNG"),
+  width = 10, height = 8
+)
