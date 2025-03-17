@@ -1,10 +1,13 @@
 Package: EpiModelSTI
 Type: Package
 Version: 0.0.1.0
-Title: Network-Based Epidemic Modeling of Mpox Transmission based on EpiModelHIV
+Title: Network-Based Epidemic Modeling of M. Genitalium and Chlamydia trachomatis based on EpiModelHIV
 Description: Similar to EpiModelHIV, this package provides extensions to our the EpiModel
-  API to allow for simulating transmission dynamics of M. genitalium and Chlamydia tachomatris.
+  API to allow for simulating transmission dynamics of M. genitalium and Chlamydia trachomatris.
   Also includes project-specific functions for data cleaning and analysis.
+Author: Emily Pollock, PhD <ruu7@cdc.gov>
+Maintainer: Emily Pollock, PhD <ruu7@cdc.gov>
+License: Apache License (== 2.0)
 Depends:
     R (>= 4.4.0),
     EpiModel (>= 2.4.0)
@@ -23,8 +26,6 @@ Suggests:
     testthat (>= 3.0.0),
     withr,
     Rglpk
-Remotes:
-    github::EpiModel/EpiModel@main
 VignetteBuilder: knitr
 RoxygenNote: 7.3.2
 Encoding: UTF-8

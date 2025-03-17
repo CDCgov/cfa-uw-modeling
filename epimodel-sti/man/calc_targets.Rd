@@ -5,8 +5,8 @@
 \title{Calculate Network Target Statistics}
 \usage{
 calc_targets(
-  net = nw,
-  x = params,
+  nw,
+  params,
   rel,
   count_type,
   attr_name = NULL,
@@ -16,19 +16,27 @@ calc_targets(
 )
 }
 \arguments{
-\item{net}{default = "nw", the network object outputted from "generate_init_network"
+\item{nw}{the network object outputted from "generate_init_network"
 (usually already in environment during workflow)}
 
-\item{x}{default = "params", the parameter list object with parameters information for
-all networks estimated from data (usually already in environment during workflow)}
+\item{params}{the parameter list object with parameters information for
+all networks estimated from data}
 
 \item{rel}{string, which relationship/network sub-lists to pull parameters from.}
 
 \item{count_type}{string, which ERGM term to generate targets for. Currently can only be
 in the form "edges", "nodefactor", "nodematch", "absdiff_sqrt_age", or "concurrent".}
 
-\item{attr_name}{string, used for nodefactor and nodematch targets. If NULL, produces
+\item{attr_name}{string of length 1, used for nodefactor and nodematch targets. If NULL, produces
 targets based on the two joint_attrs specifed}
+
+\item{joint_attrs}{string of length 2, the two attrs used to calculate joint distribution
+of estimates calculated from empirical data}
+
+\item{inst_correct}{default = FALSE, if TRUE, adjust year-long cumulative reporting of
+one-time partnerships to daily or weekly counts}
+
+\item{time_unit}{default = "weeks", the desired time unit for inst reporting conversion}
 }
 \description{
 Calculates network targets given, at minimum, a starting network,

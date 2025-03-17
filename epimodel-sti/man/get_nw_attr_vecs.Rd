@@ -4,10 +4,10 @@
 \alias{get_nw_attr_vecs}
 \title{Extract Nodal Attribute Vectors from Network}
 \usage{
-get_nw_attr_vecs(net)
+get_nw_attr_vecs(nw)
 }
 \arguments{
-\item{net}{a network object, in this workflow, usually the network generated from "generate_init_network"}
+\item{nw}{a network object, in this workflow, usually the network generated from "generate_init_network"}
 }
 \value{
 A list of nodal attribute vectors

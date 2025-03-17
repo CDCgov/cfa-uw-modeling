@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(EpiModelMpox)
+library(EpiModelSTI)
 
-test_check("EpiModelMpox")
+test_check("EpiModelSTI")
