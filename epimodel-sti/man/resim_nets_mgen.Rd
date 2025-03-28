@@ -7,8 +7,10 @@
 resim_nets_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Network Resimulation for Time Steps 2+
+Resimulation of dynamic networks
 }

@@ -4,18 +4,18 @@
 \alias{generate_init_network}
 \title{Generate Starting Network for ERGM Estimation}
 \usage{
-generate_init_network(params, deg_casual = FALSE, seed = NULL)
+generate_init_network(params, seed = NULL, assign_deg_casual = FALSE)
 }
 \arguments{
 \item{params}{a list of parameters with a sublist called "pop" with the size of the network
 and the named attributes and their distribution in the population}
 
-\item{deg_casual}{default = FALSE, if TRUE, uses additional parameters information in "params" to set
-a plausible casual degree for each node (to help fit main/long-term partnership network,
-which is usually fit first in workflow)}
-
 \item{seed}{optional, used to set a seed to maintain the same distribution of nodal attributes
 every time function is called}
+
+\item{assign_deg_casual}{default = FALSE, if TRUE, uses additional parameters information in "params" to set
+a plausible casual degree for each node (to help fit main/long-term partnership network,
+which is usually fit first in workflow)}
 }
 \value{
 an object of class network

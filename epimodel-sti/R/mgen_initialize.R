@@ -1,13 +1,11 @@
 #' @title Initialization Model for Mgen Model
 #'
-#' @description
+#' @description Initialize networks and starting nodal attributes
 #'
-#' @param $$
+#' @param dat simulation object
+#' @param at time step
 #'
 #' @export
-#'
-#' @example
-#'
 
 initialize_mgen <- function(dat, at) {
   return(dat)

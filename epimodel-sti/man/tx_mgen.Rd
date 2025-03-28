@@ -7,8 +7,10 @@
 tx_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Mgen Treatment
+treatment of mgen
 }

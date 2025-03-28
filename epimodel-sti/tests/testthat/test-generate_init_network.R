@@ -19,7 +19,7 @@ test_that("Initial nw generation sets attributes correctly", {
   }
 
   ## expect warning that deg_casual not getting set as attribute if no casual params in yaml
-  expect_warning(nw_no_cas <- generate_init_network(x, seed = 123, deg_casual = TRUE))
+  expect_warning(nw_no_cas <- generate_init_network(x, seed = 123, assign_deg_casual = TRUE))
 
   ## test that nw gets created and doesn't contain deg_casual attribute
   expect_s3_class(nw_no_cas, "network")

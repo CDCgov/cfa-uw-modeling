@@ -2,12 +2,9 @@
 #'
 #' @description either due to treatment or spontaneously(?)
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 amr_mgen <- function(dat, at) {
   return(dat)

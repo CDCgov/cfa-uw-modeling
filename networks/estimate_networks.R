@@ -1,54 +1,36 @@
 library(EpiModel)
-source(here::here("networks", "helper_functions.R"))
+devtools::load_all("epimodel-sti")
 
-# Required objects in environemnt: params, starting network, seed
+# Required objects
 this_seed <- 12345
+ncores <- parallel::detectCores() - 1L
 x <- yaml::read_yaml(here::here("params", "nw_params.yaml"))
-nw <- generate_init_network(x, seed = this_seed, deg_casual = TRUE)
-
+main_mixmat <- readRDS(here::here("params", "main_mixmat.rds"))
+cas_mixmat <- readRDS(here::here("params", "casual_mixmat.rds"))
+nw <- generate_init_network(x, seed = this_seed, assign_deg_casual = TRUE)
 # Estimate Networks ----------------------------------------------
 ## Main ---------------------------------------------------------
 main_form <- ~ edges +
-  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
   nodefactor(~race, levels = c(1:2, 4)) +
   nodefactor(~ floor(age), levels = 3:34) +
+  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
   absdiff(~ sqrt(age_adj)) +
   offset(nodefactor(~ deg_casual > 0)) +
   offset(nodefactor(~ floor(age), levels = 1:2))
 
 ## --- main targets ------------------------
-main_edges <- calc_targets(rel = "main", count_type = "edges")
-main_nodematch_race_diff <- calc_targets(rel = "main", count_type = "nodematch", attr_name = "race")
-main_nodefactor_race <- calc_targets(rel = "main", count_type = "nodefactor", attr_name = "race")
-main_nodefactor_age <- calc_targets(rel = "main", count_type = "nodefactor", attr_name = "age")
-main_absdiff_sqrt_age_adj <- calc_targets(rel = "main", count_type = "absdiff_sqrt_age")
-
-
-l <- readRDS(here::here("data", "nsfg_long.rds"))
-lsvy <- srvyr::as_survey_design(l, weights = weight)
-m_mixmat_unadj <- lsvy |>
-  dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
-  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-  dplyr::group_by(race, alter_race) |>
-  dplyr::summarize(num = srvyr::survey_total(
-    na.rm = TRUE,
-    vartype = NULL
-  )) |>
-  dplyr::ungroup() |>
-  dplyr::mutate(prop = num / sum(num)) |>
-  dplyr::select(-num) |>
-  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-  dplyr::select(-race) |>
-  as.matrix()
-
-main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj, nrow(m_mixmat_unadj))
+main_edges <- calc_targets(nw, x, "main", "edges")
+main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
+main_nf_age <- calc_targets(nw, x, "main", "nodefactor", "age")
+main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race")
+main_agemix <- calc_targets(nw, x, "main", "absdiff_sqrt_age")
 
 main_targets <- unname(c(
   main_edges,
-  main_nodematch_race_diff[c(1:2, 4)],
-  main_nodefactor_race[c(1:2, 4)],
-  main_nodefactor_age[-c(1:2, 35)],
-  main_absdiff_sqrt_age_adj
+  main_nf_race[c(1:2, 4)],
+  main_nf_age[-c(1:2, 35)],
+  main_nm_race[c(1:2, 4)],
+  main_agemix
 ))
 
 main_offset <- c(rep(-Inf, 3))
@@ -64,7 +46,7 @@ main_constraints <- ~
   bd(maxout = 1) +
     sparse +
     blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = main_race_mixmat)
+    strat(attr = ~race, pmat = main_mixmat)
 
 main_netest <- EpiModel::netest(
   nw = nw,
@@ -84,7 +66,8 @@ main_netest <- EpiModel::netest(
 
 main_dynamic <- netdx(
   main_netest,
-  dynamic = TRUE, nsims = 5, nsteps = 500, ncores = 5
+  dynamic = TRUE, nsims = 10, nsteps = 1000,
+  ncores = ncores
 )
 main_dynamic
 
@@ -99,46 +82,27 @@ nw %v% "deg_main" <- get_degree(main_netest$newnetwork)
 ## Casual ----------------------------------------------------
 
 cas_form <- ~ edges +
-  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
   nodefactor(~race, levels = c(1:2, 4)) +
   nodefactor(~ floor(age), levels = c(1:8)) +
+  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
   absdiff(~ sqrt(age_adj)) +
   concurrent() +
   offset(nodefactor(~deg_main))
 
 ## -- casual targets -------------------------------------
-cas_edges <- calc_targets(rel = "casual", count_type = "edges")
-cas_nodefactor_race <- calc_targets(rel = "casual", count_type = "nodefactor", attr_name = "race")
-cas_nodematch_race_diff <- calc_targets(rel = "casual", count_type = "nodematch", attr_name = "race")
-cas_nodefactor_age <- calc_targets(rel = "casual", count_type = "nodefactor", attr_name = "age")
-cas_absdiff_sqrt_age_adj <- calc_targets(rel = "casual", count_type = "absdiff_sqrt_age")
-cas_conc <- calc_targets(rel = "casual", count_type = "concurrent")
-
-
-c_mixmat_unadj <- lsvy |>
-  dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race) & curr == 1) |>
-  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-  dplyr::group_by(race, alter_race) |>
-  dplyr::summarize(num = srvyr::survey_total(
-    na.rm = TRUE,
-    vartype = NULL
-  )) |>
-  dplyr::ungroup() |>
-  dplyr::mutate(prop = num / sum(num)) |>
-  dplyr::select(-num) |>
-  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-  dplyr::select(-race) |>
-  as.matrix()
-
-c_race_mixmat <- matrix_symmetrical(c_mixmat_unadj, nrow(c_mixmat_unadj))
-
+cas_edges <- calc_targets(nw, x, "casual", "edges")
+cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
+cas_nf_age <- calc_targets(nw, x, "casual", "nodefactor", "age")
+cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
+cas_agemix <- calc_targets(nw, x, "casual", "absdiff_sqrt_age")
+cas_conc <- calc_targets(nw, x, "casual", "concurrent")
 
 cas_targets <- unname(c(
   cas_edges,
-  cas_nodematch_race_diff[c(1:2, 4)],
-  cas_nodefactor_race[c(1:2, 4)],
-  cas_nodefactor_age[c(1:8)],
-  cas_absdiff_sqrt_age_adj,
+  cas_nf_race[c(1:2, 4)],
+  cas_nf_age[c(1:8)],
+  cas_nm_race[c(1:2, 4)],
+  cas_agemix,
   cas_conc
 ))
 
@@ -154,7 +118,7 @@ cas_constraints <- ~
   bd(maxout = 3) +
     sparse +
     blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = c_race_mixmat)
+    strat(attr = ~race, pmat = cas_mixmat)
 
 
 cas_netest <- EpiModel::netest(
@@ -175,7 +139,7 @@ cas_netest <- EpiModel::netest(
 
 cas_dynamic <- netdx(
   cas_netest,
-  dynamic = TRUE, nsims = 5, nsteps = 500, ncores = 5
+  dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = ncores
 )
 cas_dynamic
 
@@ -189,19 +153,18 @@ inst_form <- ~ edges +
   nodefactor(~age_group, levels = 1:3) +
   absdiff(~ sqrt(age_adj))
 
-inst_edges <- calc_targets(rel = "inst", count_type = "edges", inst_correct = TRUE)
-inst_nodefactor_race <- calc_targets(rel = "inst", count_type = "nodefactor", attr_name = "race", inst_correct = TRUE)
-inst_nodefactor_agegroup <- calc_targets(
-  rel = "inst", count_type = "nodefactor",
-  attr_name = "age_group", inst_correct = TRUE
+inst_edges <- calc_targets(nw, x, "inst", "edges", inst_correct = TRUE)
+inst_nf_race <- calc_targets(nw, x, "inst", "nodefactor", "race", inst_correct = TRUE)
+inst_nf_agegrp <- calc_targets(nw, x, "inst", "nodefactor", "age_group",
+  inst_correct = TRUE
 )
-inst_absdiff_sqrt_age_adj <- calc_targets(rel = "inst", count_type = "absdiff_sqrt_age", inst_correct = TRUE)
+inst_agemix <- calc_targets(nw, x, "inst", "absdiff_sqrt_age", inst_correct = TRUE)
 
 inst_targets <- unname(c(
   inst_edges,
-  inst_nodefactor_race[c(1:2, 4)],
-  inst_nodefactor_agegroup[1:3],
-  inst_absdiff_sqrt_age_adj
+  inst_nf_race[c(1:2, 4)],
+  inst_nf_agegrp[1:3],
+  inst_agemix
 ))
 
 inst_offset <- c()

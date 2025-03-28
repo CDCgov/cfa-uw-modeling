@@ -1,13 +1,10 @@
 #' @title Model Mgen Infection between Partners
 #'
-#' @description
+#' @description Disease transmission
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 transmit_mgen <- function(dat, at) {
   return(dat)

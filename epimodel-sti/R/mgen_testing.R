@@ -1,13 +1,10 @@
 #' @title Mgen Testing and Screening
 #'
-#' @description
+#' @description Regular screening and symptomatic testing
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 testing_mgen <- function(dat, at) {
   return(dat)

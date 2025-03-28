@@ -7,8 +7,10 @@
 initialize_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Initialization Model for Mgen Model
+Initialize networks and starting nodal attributes
 }

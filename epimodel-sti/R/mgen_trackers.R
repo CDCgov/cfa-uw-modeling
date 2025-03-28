@@ -1,13 +1,10 @@
 #' @title Track Metrics of Interest
 #'
-#' @description
+#' @description Track metrics of interest
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 trackers_mgen <- function(dat, at) {
   return(dat)

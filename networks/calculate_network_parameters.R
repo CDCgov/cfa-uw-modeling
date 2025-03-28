@@ -201,37 +201,43 @@ out$casual$duration$metric <- "weeks"
 # save out as yaml
 yaml::write_yaml(out, here::here("params", "nw_params.yaml"))
 
+## race mixing to help ergm fit
+devtools::load_all("epimodel-sti")
 
-# maybe unneeded
-## race mixing
-# m_mixmat_unadj <- lsvy |>
-#  dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
-#  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-#  dplyr::group_by(race, alter_race) |>
-#  dplyr::summarize(num = srvyr::survey_total(na.rm = TRUE,
-#                                            vartype = NULL)) |>
-#  dplyr::ungroup() |>
-#  dplyr::mutate(prop = num / sum(num)) |>
-#  dplyr::select(-num) |>
-#  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-#  dplyr::select(-race) |>
-#  as.matrix()
+m_mixmat_unadj <- lsvy |>
+  dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
+  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+  dplyr::group_by(race, alter_race) |>
+  dplyr::summarize(num = srvyr::survey_total(
+    na.rm = TRUE,
+    vartype = NULL
+  )) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(prop = num / sum(num)) |>
+  dplyr::select(-num) |>
+  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+  dplyr::select(-race) |>
+  as.matrix()
 
-# main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj, nrow(m_mixmat_unadj))
+main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj)
 
-# c_mixmat_unadj <- lsvy |>
-#  dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race), curr == 1) |>
-#  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-#  dplyr::group_by(race, alter_race) |>
-#  dplyr::summarize(num = srvyr::survey_total(na.rm = TRUE,
-#                                             vartype = NULL)) |>
-#  dplyr::ungroup() |>
-#  dplyr::mutate(prop = num / sum(num)) |>
-#  dplyr::select(-num) |>
-#  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-#  dplyr::select(-race) |>
-#  as.matrix()
+c_mixmat_unadj <- lsvy |>
+  dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race), curr == 1) |>
+  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+  dplyr::group_by(race, alter_race) |>
+  dplyr::summarize(num = srvyr::survey_total(
+    na.rm = TRUE,
+    vartype = NULL
+  )) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(prop = num / sum(num)) |>
+  dplyr::select(-num) |>
+  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+  dplyr::select(-race) |>
+  as.matrix()
 
-# casual_race_mixmat <- matrix_symmetrical(c_mixmat_unadj, nrow(c_mixmat_unadj))
+casual_race_mixmat <- matrix_symmetrical(c_mixmat_unadj)
 
+saveRDS(main_race_mixmat, here::here("params", "main_mixmat.rds"))
+saveRDS(casual_race_mixmat, here::here("params", "casual_mixmat.rds"))
 # nolint end
