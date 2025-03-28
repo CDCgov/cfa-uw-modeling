@@ -7,8 +7,10 @@
 trackers_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Track Metrics of Interest
+Track metrics of interest
 }

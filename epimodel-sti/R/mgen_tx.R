@@ -1,13 +1,10 @@
 #' @title Mgen Treatment
 #'
-#' @description
+#' @description treatment of mgen
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 tx_mgen <- function(dat, at) {
   return(dat)

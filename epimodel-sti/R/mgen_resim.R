@@ -1,13 +1,10 @@
 #' @title Network Resimulation for Time Steps 2+
 #'
-#' @description
+#' @description Resimulation of dynamic networks
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 resim_nets_mgen <- function(dat, at) {
   # nolint start: cyclocomp_linter, object_name_linter

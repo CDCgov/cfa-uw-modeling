@@ -1,13 +1,10 @@
 #' @title Mgen Disease Progression & Recovery
 #'
-#' @description
+#' @description Mgen disease progression
 #'
-#' @param $$
+#' @inheritParams initialize_mgen
 #'
 #' @export
-#'
-#' @example
-#'
 
 progression_mgen <- function(dat, at) {
   return(dat)

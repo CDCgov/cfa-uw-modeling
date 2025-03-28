@@ -7,8 +7,10 @@
 transmit_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Model Mgen Infection between Partners
+Disease transmission
 }

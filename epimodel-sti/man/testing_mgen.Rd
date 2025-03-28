@@ -7,8 +7,10 @@
 testing_mgen(dat, at)
 }
 \arguments{
-\item{$$}{}
+\item{dat}{simulation object}
+
+\item{at}{time step}
 }
 \description{
-Mgen Testing and Screening
+Regular screening and symptomatic testing
 }
