@@ -22,7 +22,7 @@ Imports:
     networkLite (>= 1.0.1),
     collections
 Suggests:
-    knitr,
+    quarto,
     testthat (>= 3.0.0),
     withr,
     Rglpk
