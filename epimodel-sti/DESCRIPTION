@@ -1,6 +1,6 @@
 Package: EpiModelSTI
 Type: Package
-Version: 0.0.1.0
+Version: 0.1.0.0
 Title: Network-Based Epidemic Modeling of M. Genitalium and Chlamydia trachomatis based on EpiModelHIV
 Description: Similar to EpiModelHIV, this package provides extensions to our the EpiModel
   API to allow for simulating transmission dynamics of M. genitalium and Chlamydia trachomatris.
@@ -26,7 +26,7 @@ Suggests:
     testthat (>= 3.0.0),
     withr,
     Rglpk
-VignetteBuilder: knitr
+VignetteBuilder: quarto
 RoxygenNote: 7.3.2
 Encoding: UTF-8
 Config/testthat/edition: 3
