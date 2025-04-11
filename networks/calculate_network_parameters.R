@@ -100,6 +100,81 @@ out$inst$nodefactor$age_race <- unname(unlist(
   target_props(wsvy, attr = age, attr2 = race, degtype = deg_inst_high)$prop
 ))
 
+# version where we predict by age/race
+library(survey)
+wsvy <- wsvy |> dplyr::mutate(agesq = age^2, agecb = age^3)
+s <- wsvy$variables
+vars <- c("ego", "weight", "age", "agesq", "race", "female")
+testpop <- s |> dplyr::select(all_of(vars))
+testpop_18 <- testpop |> filter(age < 19)
+testpop_19 <- testpop |> filter(age >= 19)
+main_glm <- svyglm(deg_main ~ age + agesq + race + female, design = wsvy, family = quasibinomial())
+
+cas_glm_18 <- svyglm(deg_casual ~ age + race + female,
+  design = wsvy, subset = age < 19,
+  family = quasipoisson()
+)
+
+cas_glm_19 <- svyglm(deg_casual ~ age + agesq + race + female,
+  design = wsvy, subset = age >= 19,
+  family = quasipoisson()
+)
+
+# predict
+testpop$deg_main <- predict(main_glm, newdata = testpop, type = "response")
+testpop_18$deg_casual <- predict(cas_glm_18,
+  newdata = testpop_18,
+  type = "response"
+)
+testpop_19$deg_casual <- predict(cas_glm_19,
+  newdata = testpop_19,
+  type = "response"
+)
+testpop2 <- rbind(testpop_18, testpop_19)
+fullpop <- merge(testpop, testpop2, by = vars)
+
+library(tidyverse)
+emp <- wsvy |>
+  mutate(age_floor = floor(age)) |>
+  group_by(age_floor) |>
+  summarize(
+    deg_main = srvyr::survey_mean(deg_main, vartype = NULL),
+    deg_casual = srvyr::survey_mean(deg_casual, vartype = NULL)
+  ) |>
+  mutate(type = "empirical")
+
+all <- fullpop |>
+  mutate(age_floor = floor(age)) |>
+  group_by(age_floor) |>
+  summarize(
+    deg_main = mean(deg_main),
+    deg_casual = mean(deg_casual)
+  ) |>
+  mutate(type = "predicted") |>
+  rbind(emp)
+
+
+cas_empirical <- wsvy |>
+  mutate(age_floor = floor(age)) |>
+  group_by(age_floor) |>
+  summarize(prop = srvyr::survey_mean(deg_casual, vartype = NULL)) |>
+  mutate(type = "empirical")
+
+cas_all <- testpop2 |>
+  mutate(age_floor = floor(age)) |>
+  group_by(age_floor) |>
+  summarize(prop = mean(deg_casual)) |>
+  mutate(type = "predicted") |>
+  rbind(cas_empirical)
+
+all |>
+  ggplot(aes(x = age_floor, y = deg_main, col = type)) +
+  geom_point() +
+  geom_point(aes(y = deg_casual))
+
+# this looks a lot better!
+
+
 ## Activity (nodefactor) by Age Group
 out$main$nodefactor$age_group <- unname(unlist(target_props(wsvy, attr = age_group, degtype = deg_main)[, 2]))
 out$casual$nodefactor$age_group <- unname(unlist(target_props(wsvy, attr = age_group, degtype = deg_casual)[, 2]))
