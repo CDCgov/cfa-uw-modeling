@@ -78,19 +78,20 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   age_adj[which(age_adj > 50)] <- 50
 
   if (isTRUE(assign_deg_casual) && !is.null(params$casual)) {
-    ## set obeserved casual degree from casual params by age group & race
+    int_age_range <- params$pop$age$min:params$pop$age$max
+    ## set obeserved casual degree from casual params by age & race
     ref <- data.frame(
-      age_group = rep(params$pop$age_group$levels, each = length(params$pop$race$levels)),
-      race = rep(params$pop$race$levels, times = length(params$pop$age_group$levels)),
-      prob = params$casual$nodefactor$age_group_race
+      age = rep(int_age_range, each = length(params$pop$race$levels)),
+      race = rep(params$pop$race$levels, times = length(int_age_range)),
+      prob = params$casual$nodefactor$age_race
     )
 
-    ref$comb <- paste0(ref$age_group, ref$race)
+    ref$comb <- paste0(ref$age, ref$race)
 
-    popvec <- data.frame(comb = paste0(age_group, race)) |>
+    popvec <- data.frame(comb = paste0(floor(age), race)) |>
       dplyr::left_join(ref, by = "comb")
 
-    deg_casual <- rbinom(num, 1, popvec$prob)
+    deg_casual <- rpois(num, popvec$prob)
 
     ## make attr lists
     attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj")
@@ -381,6 +382,7 @@ calc_absdiff <- function(params, rel, count_type, edges) {
 calc_concurrent <- function(params, rel, num) {
   return(num * params[[rel]][["concurrent"]])
 }
+
 
 #' @rdname targets
 #' @export
