@@ -6,21 +6,11 @@
 # -----------------------------------------------------------------
 # Set up list and declare estimate type, load data
 # -----------------------------------------------------------------
-estimate_type <- "empirical" # , #"predicted" #alt:
-out <- list()
-
+estimate_type <- "predicted" # alt: empirical"
 w <- readRDS(here::here("data", "nsfg_wide.rds"))
 l <- readRDS(here::here("data", "nsfg_long.rds"))
-wsvy <- srvyr::as_survey_design(w, weights = weight)
-lsvy <- srvyr::as_survey_design(l, weights = weight)
 
-# -----------------------------------------------------------------
-# Add enough information to parameterize starting nodal attributes
-# -----------------------------------------------------------------
-# requires some assumptions and previous knowledge of data
-# required subset name: pop
-# nolint start
-
+out <- list()
 out$pop$size <- 100000
 
 out$pop$female$levels <- 0:1
@@ -33,6 +23,16 @@ out$pop$age_group$dist <- c(rep(0.143, 6), 0.142) # even ages with slightly fewe
 
 out$pop$race$levels <- c("B", "H", "O", "W")
 out$pop$race$dist <- c(0.12, 0.19, 0.11, 0.58) # based on 2020 census
+
+# rake surveys to population margins
+pop_agegroup <- data.frame(age_group = names(table(w$age_group)), Freq = out$pop$age_group$dist * 144764299)
+pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * 144764299)
+
+wsvy <- srvyr::as_survey_design(w, weights = weight)
+lsvy <- srvyr::as_survey_design(l, weights = weight)
+
+wsvy <- survey::rake(wsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))
+lsvy <- survey::rake(lsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))
 
 ## If estimate_type = "empirical", use weighted survey data to calculate estimates
 ## If estimate_type = "predicted", use glms based on weighted survey data to calculate smoothed estimates
@@ -178,105 +178,142 @@ if (estimate_type == "empirical") {
     as.numeric()
   out$main$duration$metric <- "weeks"
   out$casual$duration$metric <- "weeks"
+
+  ## race mixing to help ergm fit
+  devtools::load_all("epimodel-sti")
+
+  m_mixmat_unadj <- lsvy |>
+    dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
+    dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+    dplyr::group_by(race, alter_race) |>
+    dplyr::summarize(num = srvyr::survey_total(
+      na.rm = TRUE,
+      vartype = NULL
+    )) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(prop = num / sum(num)) |>
+    dplyr::select(-num) |>
+    tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+    dplyr::select(-race) |>
+    as.matrix()
+
+  # not sure why there's still an NA column, so remove
+  m_mixmat_unadj <- m_mixmat_unadj[, -5]
+
+  main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj)
+
+  c_mixmat_unadj <- lsvy |>
+    dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race), curr == 1) |>
+    dplyr::mutate(race_combo = paste0(race, alter_race)) |>
+    dplyr::group_by(race, alter_race) |>
+    dplyr::summarize(num = srvyr::survey_total(
+      na.rm = TRUE,
+      vartype = NULL
+    )) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(prop = num / sum(num)) |>
+    dplyr::select(-num) |>
+    tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
+    dplyr::select(-race) |>
+    as.matrix()
+
+  c_mixmat_unadj <- c_mixmat_unadj[, -5]
+  casual_race_mixmat <- matrix_symmetrical(c_mixmat_unadj)
+
+  saveRDS(main_race_mixmat, here::here("params", "main_mixmat_empirical.rds"))
+  saveRDS(casual_race_mixmat, here::here("params", "casual_mixmat_empirical.rds"))
 }
 
 if (estimate_type == "predicted") {
   # -----------------------------------------------------------------
   # Estimate Partnership Frequencies
   # -----------------------------------------------------------------
+  # First: cross- and within- network concurrenct
+  wsvy <- wsvy |> dplyr::mutate(
+    agesq = age^2,
+    cross_network = ifelse(deg_main > 0 & deg_casual > 0, 1, 0),
+    conc = ifelse(deg_casual > 1, 1, 0)
+  )
+  has_cn_glm <- survey::svyglm(cross_network ~ age + race, design = wsvy, family = quasibinomial())
+  wsvy$variables$has_cn <- predict(has_cn_glm, newdata = wsvy$variables, type = "response")
 
-  # First, we use the above empirical framework to get cross- and within-network concurrency rates
-  # (using predicted values for these tend to need really detailed glms that don't smooth out activity in a desireable way)
-  degmat <- wsvy |>
-    dplyr::group_by(deg_main, deg_casual) |>
-    dplyr::summarize(sum = srvyr::survey_total(vartype = NULL)) |>
-    dplyr::ungroup() |>
-    dplyr::mutate(prop = sum / sum(sum)) |>
-    dplyr::select(-sum) |>
-    tidyr::pivot_wider(names_from = deg_casual, values_from = prop) |>
-    dplyr::select(-deg_main) |>
-    as.matrix()
+  cn_prop <- wsvy |>
+    dplyr::summarize(has_cn = srvyr::survey_mean(has_cn, vartype = NULL)) |>
+    dplyr::pull()
 
-  ## add overall concurrency types to out list
-  out$main$has_casual <- degmat[2, 2] + degmat[2, 3]
-  out$casual$has_main <- degmat[2, 2] + degmat[2, 3]
-  out$casual$concurrent <- sum(colSums(degmat, na.rm = TRUE)[3:4])
+  has_conc_glm <- survey::svyglm(conc ~ age + race, design = wsvy, family = quasibinomial())
+  wsvy$variables$has_conc <- predict(has_conc_glm, newdata = wsvy$variables, type = "response")
 
-  # Move on to smoothed predicted activity by age/race vals
-  library(survey)
-  wsvy <- wsvy |> dplyr::mutate(agesq = age^2)
-  s <- wsvy$variables
-  vars <- c("ego", "weight", "age", "agesq", "race", "female")
-  testpop <- s |> dplyr::select(all_of(vars))
-  testpop_18 <- testpop |> dplyr::filter(age < 19)
-  testpop_19 <- testpop |> dplyr::filter(age >= 19)
-  ## TRY WITH FITTING CASUAL FIRST
+  conc_prop <- wsvy |>
+    dplyr::summarize(has_conc = srvyr::survey_mean(has_conc, vartype = NULL)) |>
+    dplyr::pull()
 
-  cas_glm_18 <- svyglm(deg_casual ~ age + agesq + race + female,
-    design = wsvy, subset = age < 19,
-    family = quasipoisson()
+  ## Update Params
+  out$main$cross_network <- cn_prop
+  out$casual$cross_network <- cn_prop
+  out$casual$concurrent <- conc_prop
+
+  # Second: smoothed predicted activity by age/race vals
+  cas_glm <- survey::svyglm(deg_casual ~ age + agesq + deg_main,
+    design = wsvy, family = quasipoisson()
   )
 
-  cas_glm_19 <- svyglm(deg_casual ~ age + agesq + race + female, ,
-    design = wsvy, subset = age >= 19,
-    family = quasipoisson()
+  wsvy$variables$deg_casual_pred <- predict(cas_glm, newdata = wsvy$variables, type = "response")
+  wsvy$variables$deg_casual2 <- rpois(nrow(wsvy$variables), wsvy$variables$deg_casual_pred)
+
+  main_glm <- survey::svyglm(deg_main ~ age + race + agesq + female + deg_casual,
+    design = wsvy, family = quasibinomial()
   )
+  wsvy$variables$deg_main_prob <- predict(main_glm, newdata = wsvy$variables, type = "response")
 
-  testpop_18$deg_casual_prob <- predict(cas_glm_18, newdata = testpop_18, type = "response")
-  testpop_19$deg_casual_prob <- predict(cas_glm_19, newdata = testpop_19, type = "response")
-  testpop2 <- rbind(testpop_18, testpop_19)
+  inst_glm <- survey::svyglm(deg_inst_high ~ age + agesq + race + female, design = wsvy, family = quasipoisson())
+  wsvy$variables$deg_inst_prob <- predict(inst_glm, newdata = wsvy$variables, type = "response")
 
-  main_glm <- svyglm(deg_main ~ age + agesq + race + female, design = wsvy, family = quasibinomial())
-  testpop2$deg_main_prob <- predict(main_glm, newdata = testpop2, type = "response")
-
-  inst_glm <- svyglm(deg_inst_high ~ age + agesq + race + female, design = wsvy, family = quasipoisson())
-  testpop2$deg_inst_prob <- predict(inst_glm, newdata = testpop2, type = "response")
-
-  fullpop <- testpop2 |>
+  wsvy$variables <- wsvy$variables |>
     dplyr::mutate(
-      deg_main = rbinom(nrow(testpop2), 1, deg_main_prob),
-      deg_casual = rpois(nrow(testpop2), deg_casual_prob),
-      deg_inst = rpois(nrow(testpop2), deg_inst_prob)
+      deg_main2 = rbinom(nrow(wsvy$variables), 1, deg_main_prob),
+      deg_inst2 = rpois(nrow(wsvy$variables), deg_inst_prob)
     )
 
-
-
-  library(tidyverse)
   emp <- wsvy |>
-    mutate(age_floor = floor(age)) |>
-    group_by(age_floor, race) |>
-    summarize(
+    dplyr::mutate(age_floor = floor(age)) |>
+    dplyr::group_by(age_floor, race) |>
+    dplyr::summarize(
       deg_main = srvyr::survey_mean(deg_main, vartype = NULL),
       deg_casual = srvyr::survey_mean(deg_casual, vartype = NULL),
       deg_inst = srvyr::survey_mean(deg_inst_high, vartype = NULL)
     ) |>
-    mutate(type = "empirical")
+    dplyr::mutate(type = "empirical")
 
-  pred <- fullpop |>
-    mutate(age_floor = floor(age)) |>
-    group_by(age_floor, race) |>
-    summarize(
-      deg_main = mean(deg_main_prob),
-      deg_casual = mean(deg_casual_prob),
-      deg_inst = mean(deg_inst_prob)
+  pred <- wsvy |>
+    dplyr::mutate(age_floor = floor(age)) |>
+    dplyr::group_by(age_floor, race) |>
+    dplyr::summarize(
+      deg_main = srvyr::survey_mean(deg_main2, vartype = NULL),
+      deg_casual = srvyr::survey_mean(deg_casual2, vartype = NULL),
+      deg_inst = srvyr::survey_mean(deg_inst2, vartype = NULL)
     ) |>
-    mutate(type = "predicted")
+    dplyr::mutate(type = "predicted")
 
   all <- rbind(pred, emp)
 
   ### plot comparison
+  library(ggplot2)
   all |>
     ggplot(aes(x = age_floor, y = deg_main, col = type)) +
     geom_point() +
+    geom_smooth() +
     facet_wrap(~race)
 
   all |>
     ggplot(aes(x = age_floor, y = deg_casual, col = type)) +
     geom_point() +
+    geom_smooth() +
     facet_wrap(~race)
 
   all |> ggplot(aes(x = age_floor, y = deg_inst, col = type)) +
     geom_point() +
+    geom_smooth() +
     facet_wrap(~race)
 
   # this looks a lot better than using the empirical estimates
@@ -294,78 +331,205 @@ if (estimate_type == "predicted") {
   ## If estimate_type = "predicted", use glms based on weighted survey data to calculate smoothed estimates
   ## NOTE: for within partnership characteristcs, both methods produce similar results relative to above
 
-  # Mean absolute value of difference in sqrt of age between partners (for absdiff ERGM term)
-  # with female age adjusted to account for asymmmetry (they are usually younger than male partners)
-  l <- lsvy$variables
-  vars_long <- c("ego", "weight", "female", "age", "asym_agediff", "rel2", "race", "partdur")
-  testpop_long <- l |>
-    dplyr::select(all_of(vars_long)) |>
-    dplyr::filter(!is.na(rel2)) # remove 1 rel where rel2 is NA
+  ## Mean absolute value of difference in sqrt of age between partners (for absdiff ERGM term)
+  ## with female age adjusted to account for asymmmetry (they are usually younger than male partners)
 
+  ## Age Mixing ######################################################
+  # predict asymmetric different in age (on average females younger)
+  adjs_glm <- survey::svyglm(asym_agediff ~ female, design = lsvy)
+  lsvy$variables$pred_asym <- predict(adjs_glm, type = "response", newdata = lsvy$variables)
 
-  adjs_glm <- svyglm(asym_agediff ~ female, design = lsvy)
-  testpop_long$pred_asym <- predict(adjs_glm, type = "response", newdata = testpop_long)
-  pred_adj <- testpop_long |>
-    srvyr::as_survey_design(weights = weight) |>
-    summarize(mean = srvyr::survey_mean(pred_asym, vartype = NULL)) |>
-    pull()
+  # estimate asymmetric age adjustment for females
+  pred_adj <- lsvy |>
+    dplyr::summarize(mean = srvyr::survey_mean(pred_asym, vartype = NULL)) |>
+    dplyr::pull()
 
+  # calculate adjusted ages and diff_sqrt_age based on age_adj
   lsvy <- lsvy |>
     dplyr::mutate(
-      age_adj1 = ifelse(female == 1, age + as.numeric(pred_adj), age),
-      age_adj2 = ifelse(female == 0, alter_age + as.numeric(pred_adj), alter_age),
+      age_adj1 = ifelse(female == 1, age + pred_adj, age),
+      age_adj2 = ifelse(female == 0, alter_age + pred_adj, alter_age),
       diff_sqrt_age = abs(sqrt(age_adj1) - sqrt(age_adj2))
     )
 
+  # fit and predict
+  agemix_glm <- survey::svyglm(diff_sqrt_age ~ female + rel2, design = lsvy)
+  lsvy$variables$agemix <- predict(agemix_glm, type = "response", newdata = lsvy$variables)
 
-  agemix_glm <- svyglm(diff_sqrt_age ~ female + rel2, design = lsvy)
-  testpop_long$agemix <- predict(agemix_glm, type = "response", newdata = testpop_long)
+  agemix_per_rel <- lsvy |>
+    dplyr::group_by(rel2) |>
+    dplyr::summarize(mean = srvyr::survey_mean(agemix, vartype = NULL)) |>
+    dplyr::pull()
 
-  agemix_per_rel <- testpop_long |>
-    srvyr::as_survey_design(weights = weight) |>
-    group_by(rel2) |>
-    summarize(mean = srvyr::survey_mean(agemix, vartype = NULL)) |>
-    pull()
-
-  # Update parameters
+  ## Update parameters
   out$pop$age$female_age_adj <- pred_adj # for pop setup
   out$main$absdiff_sqrt_age <- agemix_per_rel[1] # diff in sqrt age, main
   out$casual$absdiff_sqrt_age <- agemix_per_rel[2] # diff in sqrt age, casual
-  # no information about age mixing for non-current (one-time) partners
-  # use current casuals as proxy
+  ## no information about age mixing for non-current (one-time) partners
+  ## use current casuals as proxy
   out$inst$absdiff_sqrt_age <- agemix_per_rel[2]
 
-  # Race Matching (for nodematch ERGM term)
-  race_glm <- svyglm(race_match ~ race + rel2, design = lsvy, family = quasibinomial())
-  testpop_long$race_match <- predict(race_glm, newdata = testpop_long, type = "response")
+  ## Age Group & Race Matching (for nodematch ERGM terms) #########################
+  race_glm <- survey::svyglm(race_match ~ race + age_group + rel2, design = lsvy, family = quasibinomial())
+  lsvy$variables$race_match_pred <- predict(race_glm, newdata = lsvy$variables, type = "response")
 
-  rm <- testpop_long |>
-    srvyr::as_survey_design(weights = weight) |>
-    group_by(rel2, race) |>
-    summarize(mean = srvyr::survey_mean(race_match, vartype = NULL)) |>
-    pull()
+  rm <- lsvy |>
+    dplyr::group_by(rel2, race) |>
+    dplyr::summarize(mean = srvyr::survey_mean(race_match_pred, vartype = NULL)) |>
+    dplyr::pull()
 
-  # Update parameters
+  agegrp_glm <- survey::svyglm(agegrp_match ~ age_group + race + rel2, design = lsvy, family = quasibinomial())
+  lsvy$variables$agegrp_match_pred <- predict(agegrp_glm, newdata = lsvy$variables, type = "response")
+
+  am <- lsvy |>
+    dplyr::group_by(rel2, age_group) |>
+    dplyr::summarize(mean = srvyr::survey_mean(agegrp_match_pred, vartype = NULL)) |>
+    dplyr::pull()
+
+  ## Update parameters
   out$main$nodematch$race <- rm[1:4]
   out$casual$nodematch$race <- rm[5:8]
+  out$main$nodematch$age_group <- am[1:7]
+  out$casual$nodematch$age_group <- am[8:14]
+
+  ## Mixing matrices for constraints ##################################
+  alter_race_glm <- survey::svyolr(as.factor(alter_race) ~ race + age + rel2,
+    design = lsvy
+  )
+  lsvy$variables[, c("B", "H", "O", "W")] <- predict(alter_race_glm, newdata = lsvy$variables, type = "probs")
+
+  totrels <- lsvy |>
+    dplyr::group_by(rel2, race) |>
+    dplyr::summarize(
+      tot = srvyr::survey_total(vartype = NULL),
+      B = srvyr::survey_mean(B, vartype = NULL),
+      H = srvyr::survey_mean(H, vartype = NULL),
+      O = srvyr::survey_mean(O, vartype = NULL),
+      W = srvyr::survey_mean(W, vartype = NULL)
+    ) |>
+    dplyr::mutate(
+      B = B * tot,
+      H = H * tot,
+      O = O * tot,
+      W = W * tot
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(-race, -rel2, -tot)
+
+  mainrels <- totrels[1:4, ]
+  casrels <- totrels[5:8, ]
+  mainprops <- mainrels / sum(mainrels)
+  casprops <- casrels / sum(casrels)
+
+  devtools::load_all("epimodel-sti")
+  main_race_mixmat <- matrix_symmetrical(mainprops)
+  casual_race_mixmat <- matrix_symmetrical(casprops)
+
+  saveRDS(main_race_mixmat, here::here("params", "main_mixmat_predicted.rds"))
+  saveRDS(casual_race_mixmat, here::here("params", "casual_mixmat_predicted.rds"))
+
+  alter_age_glm <- survey::svyolr(as.factor(alter_age_group) ~ race + age + rel2, design = lsvy)
+  lsvy$variables[, paste0("ag", 1:7)] <- predict(alter_age_glm, newdata = lsvy$variables, type = "probs")
+
+  atotrels <- lsvy |>
+    dplyr::group_by(rel2, age_group) |>
+    dplyr::summarize(
+      tot = srvyr::survey_total(vartype = NULL),
+      ag1 = srvyr::survey_mean(ag1, vartype = NULL),
+      ag2 = srvyr::survey_mean(ag2, vartype = NULL),
+      ag3 = srvyr::survey_mean(ag3, vartype = NULL),
+      ag4 = srvyr::survey_mean(ag4, vartype = NULL),
+      ag5 = srvyr::survey_mean(ag5, vartype = NULL),
+      ag6 = srvyr::survey_mean(ag6, vartype = NULL),
+      ag7 = srvyr::survey_mean(ag7, vartype = NULL)
+    ) |>
+    dplyr::mutate(
+      ag1 = ag1 * tot,
+      ag2 = ag2 * tot,
+      ag3 = ag3 * tot,
+      ag4 = ag4 * tot,
+      ag5 = ag5 * tot,
+      ag6 = ag6 * tot,
+      ag7 = ag7 * tot
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(-age_group, -rel2, -tot)
+
+  amainrels <- atotrels[1:7, ]
+  acasrels <- atotrels[8:14, ]
+  amainprops <- amainrels / sum(amainrels)
+  acasprops <- acasrels / sum(acasrels)
+
+  main_ag_mixmat <- matrix_symmetrical(amainprops)
+  casual_ag_mixmat <- matrix_symmetrical(acasprops)
+
+  saveRDS(main_ag_mixmat, here::here("params", "main_mixmat_ag_predicted.rds"))
+  saveRDS(casual_ag_mixmat, here::here("params", "casual_mixmat_ag_predicted.rds"))
+
+
+  ## For nodecov target, mean of combined age and agesq across all rels
+  comb_age_glm <- survey::svyglm(comb_age ~ age + race + rel2, design = lsvy)
+  comb_agesq_glm <- survey::svyglm(comb_agesq ~ age + race + rel2, design = lsvy)
+  lsvy$variables$comb_age_pred <- predict(comb_age_glm, newdata = lsvy$variables, type = "response")
+  lsvy$variables$comb_agesq_pred <- predict(comb_agesq_glm, newdata = lsvy$variables, type = "response")
+
+  comb_age_tars <- lsvy |>
+    dplyr::group_by(rel2) |>
+    dplyr::summarize(
+      ca = srvyr::survey_mean(comb_age_pred, vartype = NULL),
+      casq = srvyr::survey_mean(comb_agesq_pred, vartype = NULL)
+    )
+
+  ## Update
+  out$main$nodecov$age <- as.numeric(comb_age_tars[1, 2])
+  out$main$nodecov$agesq <- as.numeric(comb_age_tars[1, 3])
+  out$casual$nodecov$age <- as.numeric(comb_age_tars[2, 2])
+  out$casual$nodecov$agesq <- as.numeric(comb_age_tars[2, 3])
 
   # --------------------------------------------------
   # Estimate Relationship Duration
   # --------------------------------------------------
-  dur_glm <- svyglm(partdur ~ rel2 + age + race, design = lsvy)
-  testpop_long$dur <- predict(dur_glm, newdata = testpop_long, type = "response")
+  lsvy <- lsvy |>
+    dplyr::mutate(
+      agegrp_dyad = paste0(age_group, alter_age_group),
+      agegrp_dyad = ifelse(agegrp_match == TRUE, agegrp_dyad, NA),
+      race_dyad = paste0(race, alter_race),
+      race_dyad = ifelse(race_match == TRUE, race_dyad, NA)
+    )
 
-  durs <- testpop_long |>
-    srvyr::as_survey_design(weights = weight) |>
-    group_by(rel2) |>
-    summarize(mean = srvyr::survey_median(dur, vartype = NULL)) |>
-    pull() * 4
+  dur_glm <- survey::svyglm(log(partdur) ~ rel2 + age + race, design = lsvy)
+  lsvy$variables$dur_pred <- predict(dur_glm, newdata = lsvy$variables, type = "response")
+  lsvy$variables$dur <- exp(lsvy$variables$dur_pred)
 
-  # Update parameters
-  out$main$duration$duration <- durs[1]
-  out$casual$duration$duration <- durs[2]
-  out$main$duration$metric <- "weeks"
-  out$casual$duration$metric <- "weeks"
+  durs_main <- lsvy |>
+    dplyr::filter(rel2 == "Marriage/Cohab") |>
+    dplyr::group_by(agegrp_dyad) |>
+    dplyr::summarize(med = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::pull()
+
+  durs_cas <- lsvy |>
+    dplyr::filter(rel2 == "Casual/Other") |>
+    dplyr::group_by(agegrp_dyad) |>
+    dplyr::summarize(mean = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::pull()
+
+  durs_main_single <- lsvy |>
+    dplyr::filter(rel2 == "Marriage/Cohab") |>
+    dplyr::summarize(med = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::pull()
+
+  durs_cas_single <- lsvy |>
+    dplyr::filter(rel2 == "Casual/Other") |>
+    dplyr::summarize(med = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::pull()
+
+  ## Update parameters
+  out$main$duration$duration$agegrp_match <- durs_main
+  out$casual$duration$duration$agegrp_match <- durs_cas
+  out$main$duration$duration$overall <- durs_main_single
+  out$casual$duration$duration$overall <- durs_cas_single
+  out$main$duration$metric <- "days"
+  out$casual$duration$metric <- "days"
 }
 
 
@@ -373,43 +537,4 @@ if (estimate_type == "predicted") {
 params_name <- paste0("nw_params_", estimate_type, ".yaml")
 yaml::write_yaml(out, here::here("params", params_name))
 
-## race mixing to help ergm fit
-devtools::load_all("epimodel-sti")
-
-m_mixmat_unadj <- lsvy |>
-  dplyr::filter(rel2 == "Marriage/Cohab", !is.na(alter_race)) |>
-  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-  dplyr::group_by(race, alter_race) |>
-  dplyr::summarize(num = srvyr::survey_total(
-    na.rm = TRUE,
-    vartype = NULL
-  )) |>
-  dplyr::ungroup() |>
-  dplyr::mutate(prop = num / sum(num)) |>
-  dplyr::select(-num) |>
-  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-  dplyr::select(-race) |>
-  as.matrix()
-
-main_race_mixmat <- matrix_symmetrical(m_mixmat_unadj)
-
-c_mixmat_unadj <- lsvy |>
-  dplyr::filter(rel2 == "Casual/Other", !is.na(alter_race), curr == 1) |>
-  dplyr::mutate(race_combo = paste0(race, alter_race)) |>
-  dplyr::group_by(race, alter_race) |>
-  dplyr::summarize(num = srvyr::survey_total(
-    na.rm = TRUE,
-    vartype = NULL
-  )) |>
-  dplyr::ungroup() |>
-  dplyr::mutate(prop = num / sum(num)) |>
-  dplyr::select(-num) |>
-  tidyr::pivot_wider(names_from = alter_race, values_from = prop) |>
-  dplyr::select(-race) |>
-  as.matrix()
-
-casual_race_mixmat <- matrix_symmetrical(c_mixmat_unadj)
-
-saveRDS(main_race_mixmat, here::here("params", "main_mixmat.rds"))
-saveRDS(casual_race_mixmat, here::here("params", "casual_mixmat.rds"))
 # nolint end

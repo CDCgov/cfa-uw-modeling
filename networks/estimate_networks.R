@@ -1,43 +1,66 @@
 library(EpiModel)
 devtools::load_all("epimodel-sti")
+library(ggplot2)
 
 # Required objects
 this_seed <- 12345
 ncores <- parallel::detectCores() - 1L
-x <- yaml::read_yaml(here::here("params", "nw_params.yaml"))
-main_mixmat <- readRDS(here::here("params", "main_mixmat.rds"))
-cas_mixmat <- readRDS(here::here("params", "casual_mixmat.rds"))
+estimate_type <- "predicted" # alt: empirical
+x <- yaml::read_yaml(here::here("params", paste0("nw_params_", estimate_type, ".yaml")))
+main_mixmat_race <- readRDS(here::here("params", paste0("main_mixmat_", estimate_type, ".rds")))
+cas_mixmat_race <- readRDS(here::here("params", paste0("casual_mixmat_", estimate_type, ".rds")))
+main_mixmat_ag <- readRDS(here::here("params", paste0("main_mixmat_ag_", estimate_type, ".rds")))
+cas_mixmat_ag <- readRDS(here::here("params", paste0("casual_mixmat_ag_", estimate_type, ".rds")))
 nw <- generate_init_network(x, seed = this_seed, assign_deg_casual = TRUE)
+
 # Estimate Networks ----------------------------------------------
 ## Main ---------------------------------------------------------
 main_form <- ~ edges +
-  nodefactor(~race, levels = c(1:2, 4)) +
-  nodefactor(~ floor(age), levels = 3:34) +
+  # nodematch(~age_group, diff = TRUE, levels = c(1:4, 6:7)) +
   nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
+  nodefactor(~race, levels = c(1:2, 4)) +
+  nodecov(~age) +
+  nodecov(~agesq) +
   absdiff(~ sqrt(age_adj)) +
-  offset(nodefactor(~ deg_casual > 0)) +
+  nodefactor(~ deg_casual > 0) +
   offset(nodefactor(~ floor(age), levels = 1:2))
 
 ## --- main targets ------------------------
 main_edges <- calc_targets(nw, x, "main", "edges")
-main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
-main_nf_age <- calc_targets(nw, x, "main", "nodefactor", "age")
+main_nm_agegp <- calc_targets(nw, x, "main", "nodematch", "age_group")
 main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race")
+main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
+main_nc_age <- calc_targets(nw, x, "main", "nodecov", "age")
+main_nc_agesq <- calc_targets(nw, x, "main", "nodecov", "age", attr_squared = TRUE)
 main_agemix <- calc_targets(nw, x, "main", "absdiff_sqrt_age")
+main_cross <- calc_targets(nw, x, "main", "cross_network")
 
 main_targets <- unname(c(
   main_edges,
-  main_nf_race[c(1:2, 4)],
-  main_nf_age[-c(1:2, 35)],
+  # main_nm_agegp[c(1:4, 6:7)],
   main_nm_race[c(1:2, 4)],
-  main_agemix
+  main_nf_race[c(1:2, 4)],
+  main_nc_age,
+  main_nc_agesq,
+  main_agemix,
+  main_cross
 ))
 
-main_offset <- c(rep(-Inf, 3))
+main_offset <- c(rep(-Inf, 2))
+
+# switch around duration so edges (non-matched age group rels) is first
+# minus the last age group, which we drop
+mdurs <- c(x$main$duration$duration[8], x$main$duration$duration[c(1:4, 6:7)])
+
+main_diss <- dissolution_coefs(
+  dissolution = ~ offset(edges) + offset(nodematch(~age_group, diff = TRUE, levels = c(1:4, 6:7))),
+  duration = mdurs,
+  d.rate = 0
+)
 
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
-  duration = x$main$duration$duration,
+  duration = x$main$duration$duration$overall,
   d.rate = 0
 )
 
@@ -46,7 +69,7 @@ main_constraints <- ~
   bd(maxout = 1) +
     sparse +
     blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = main_mixmat)
+    strat(attr = ~race, pmat = main_mixmat_race)
 
 main_netest <- EpiModel::netest(
   nw = nw,
@@ -77,49 +100,60 @@ if (!dir.exists(here::here("networks", "fits", Sys.Date()))) {
 saveRDS(main_netest, here::here("networks", "fits", Sys.Date(), "main.rds"))
 saveRDS(nw, here::here("networks", "fits", Sys.Date(), "nw.rds"))
 
-nw %v% "deg_main" <- get_degree(main_netest$newnetwork)
+nw <- set.vertex.attribute(nw, "deg_main", get_degree(main_netest$newnetwork))
 
 ## Casual ----------------------------------------------------
 
 cas_form <- ~ edges +
+  nodefactor(~age_group, levels = 1:6) +
   nodefactor(~race, levels = c(1:2, 4)) +
-  nodefactor(~ floor(age), levels = c(1:8)) +
-  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
-  absdiff(~ sqrt(age_adj)) +
+  # nodematch(~age_group, diff = TRUE, levels = c(1:3)) +
+  nodematch(~race, diff = TRUE, levels = c(1, 3:4)) +
   concurrent() +
-  offset(nodefactor(~deg_main))
+  nodefactor(~deg_main)
 
 ## -- casual targets -------------------------------------
 cas_edges <- calc_targets(nw, x, "casual", "edges")
+cas_nm_agegp <- calc_targets(nw, x, "casual", "nodematch", "age_group")
+cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
 cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
 cas_nf_age <- calc_targets(nw, x, "casual", "nodefactor", "age")
-cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
+cas_nf_agegp <- calc_targets(nw, x, "casual", "nodefactor", "age_group")
 cas_agemix <- calc_targets(nw, x, "casual", "absdiff_sqrt_age")
 cas_conc <- calc_targets(nw, x, "casual", "concurrent")
+cas_cross <- calc_targets(nw, x, "casual", "cross_network")
 
 cas_targets <- unname(c(
   cas_edges,
+  # cas_nf_age[1:5],
+  cas_nf_agegp[1:6],
   cas_nf_race[c(1:2, 4)],
-  cas_nf_age[c(1:8)],
-  cas_nm_race[c(1:2, 4)],
-  cas_agemix,
-  cas_conc
+  # cas_nm_agegp[c(1:3)],
+  cas_nm_race[c(1, 3:4)],
+  cas_conc,
+  cas_cross
 ))
 
-cas_offset <- c(-Inf)
+cas_offset <- c()
+
+cdurs <- c(x$casual$duration$duration[8], x$casual$duration$duration[c(1:3, 5:7)])
+cas_diss <- dissolution_coefs(
+  dissolution = ~ offset(edges) + offset(nodematch(~age_group, diff = TRUE, levels = c(1:3, 5:7))),
+  duration = cdurs,
+  d.rate = 0
+)
 
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
-  duration = x$casual$duration$duration,
+  duration = x$casual$duration$duration$overall,
   d.rate = 0
 )
 
 cas_constraints <- ~
-  bd(maxout = 3) +
-    sparse +
+  sparse +
     blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = cas_mixmat)
-
+    strat(attr = ~race, pmat = cas_mixmat_race) +
+    strat(attr = ~age_group, pmat = cas_mixmat_ag)
 
 cas_netest <- EpiModel::netest(
   nw = nw,
@@ -139,13 +173,14 @@ cas_netest <- EpiModel::netest(
 
 cas_dynamic <- netdx(
   cas_netest,
-  dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = ncores
+  dynamic = TRUE, nsims = 5, nsteps = 500, ncores = ncores
 )
 cas_dynamic
 
 saveRDS(cas_netest, here::here("networks", "fits", Sys.Date(), "casual.rds"))
 
-nw %v% "deg_casual" <- get_degree(cas_netest$newnetwork)
+nw <- set.vertex.attribute(nw, "deg_casual", get_degree(cas_netest$newnetwork))
+
 
 # Inst network ----------------------------------------------------
 inst_form <- ~ edges +
@@ -153,12 +188,12 @@ inst_form <- ~ edges +
   nodefactor(~age_group, levels = 1:3) +
   absdiff(~ sqrt(age_adj))
 
-inst_edges <- calc_targets(nw, x, "inst", "edges", inst_correct = TRUE)
-inst_nf_race <- calc_targets(nw, x, "inst", "nodefactor", "race", inst_correct = TRUE)
+inst_edges <- calc_targets(nw, x, "inst", "edges", inst_correct = TRUE, time_unit = "days")
+inst_nf_race <- calc_targets(nw, x, "inst", "nodefactor", "race", inst_correct = TRUE, time_unit = "days")
 inst_nf_agegrp <- calc_targets(nw, x, "inst", "nodefactor", "age_group",
-  inst_correct = TRUE
+  inst_correct = TRUE, time_unit = "days"
 )
-inst_agemix <- calc_targets(nw, x, "inst", "absdiff_sqrt_age", inst_correct = TRUE)
+inst_agemix <- calc_targets(nw, x, "inst", "absdiff_sqrt_age", inst_correct = TRUE, time_unit = "days")
 
 inst_targets <- unname(c(
   inst_edges,
@@ -225,6 +260,7 @@ dat <- data.frame(
   c = nw %v% "deg_casual"
 )
 
+
 comp <- dat |>
   dplyr::group_by(age, race) |>
   dplyr::summarize(
@@ -252,52 +288,7 @@ comp |>
   ggplot2::facet_wrap(~race)
 
 
-casdx <- cas_dynamic$nw
-maindx <- main_dynamic$nw
-datdx <- data.frame(
-  age = floor(casdx %v% "age"),
-  age_group = casdx %v% "age_group",
-  race = casdx %v% "race",
-  d = get_degree(maindx),
-  c = get_degree(casdx)
-)
-
-compdx <- datdx |>
-  dplyr::group_by(age, race) |>
-  dplyr::summarize(
-    main_mod = mean(d),
-    cas_mod = mean(c)
-  ) |>
-  dplyr::left_join(emp, by = c("age", "race")) |>
-  tidyr::pivot_longer(
-    cols = c("main", "main_mod", "cas", "cas_mod"),
-    names_to = c("type"), values_to = "vals"
-  )
-
-compdx |>
-  dplyr::filter(type %in% c("main", "main_mod")) |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(span = 0.75) +
-  ggplot2::facet_wrap(~race)
-
-compdx |>
-  dplyr::filter(type %in% c("cas", "cas_mod")) |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(span = 0.75) +
-  ggplot2::facet_wrap(~race)
-
-compdx |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(span = 0.75) +
-  ggplot2::facet_wrap(~race) +
-  ggplot2::ggtitle("Comparing Empirical Relationship Activity to Fit Networks") +
-  ggplot2::ylab("Proportion of persons in a given relationship") +
-  ggplot2::xlab("Age")
-
-ggplot2::ggsave(
-  filename = here::here("networks", "fits", Sys.Date(), "post_diagnostics_comps.PNG"),
-  width = 10, height = 8
-)
+# ggplot2::ggsave(
+# filename = here::here("networks", "fits", Sys.Date(), "post_diagnostics_comps.PNG"),
+# width = 10, height = 8
+# )

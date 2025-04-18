@@ -66,9 +66,25 @@ a2 <- a |>
       labels = c("Marriage/Cohab", "Casual/Other")
     )
   ) |>
-  dplyr::select(-c("page", "prace")) |>
+  dplyr::select(-c("page", "prace"))
+
+# filter to current marcoh / casual
+a3 <- a2 |> dplyr::filter(curr == 1)
+
+# For best ergm estimates, we need to input alter_age (missing a lot of under19 and casual alter_ages)
+partner_age_glm <- glm(alter_age ~ age + race + female + rel2, data = a3, weights = weight)
+agemiss <- which(is.na(a3$alter_age))
+
+testdat <- a3[agemiss, ]
+a3$alter_age[agemiss] <- predict(partner_age_glm, newdata = testdat, type = "response")
+
+
+# Return to cleaning
+
+a4 <- a3 |>
   dplyr::mutate(alter_age = ifelse(alter_age == 50, 49.9, alter_age)) |>
   dplyr::mutate(alter_age = ifelse(alter_age > 50, NA, alter_age)) |>
+  dplyr::mutate(alter_age = ifelse(alter_age < 15, 15, alter_age)) |>
   dplyr::mutate( # race cat
     alter_race = ifelse(alter_race == 1, "H",
       ifelse(alter_race == 2, "W",
@@ -79,9 +95,9 @@ a2 <- a |>
     )
   )
 
-a2$alter_age_group <- cut(round(a2$alter_age), 7)
+a4$alter_age_group <- cut(round(a4$alter_age), 7)
 
-a2 <- a2 |>
+a5 <- a4 |>
   dplyr::mutate(
     agegrp_match = ifelse(age_group == alter_age_group, TRUE, FALSE),
     race_match = ifelse(race == alter_race, TRUE, FALSE)
@@ -94,14 +110,17 @@ a2 <- a2 |>
     asym_agediff_sqrt = ifelse(female == 1,
       sqrt(alter_age) - sqrt(age),
       sqrt(age) - sqrt(alter_age)
-    )
+    ),
+    comb_age = age + alter_age,
+    comb_agesq = age^2 + alter_age^2
   )
 
 
-# filter to current marcoh / casual, plus one-times
-a3 <- a2 |> dplyr::filter(curr == 1 | (curr == 0 & once == 1))
+# finally, remove any remaining rows with NA reponses in key variables
+a6 <- a5 |>
+  dplyr::filter(!is.na(alter_age), !is.na(rel2), !is.na(alter_race))
 
 # save out
-saveRDS(a3, here::here("data", "nsfg_long.rds"))
+saveRDS(a6, here::here("data", "nsfg_long.rds"))
 
 # nolint end
