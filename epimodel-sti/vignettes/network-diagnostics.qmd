@@ -18,8 +18,8 @@ data("mixmats", package = "EpiModelSTI")
 ncores <- parallel::detectCores() - 1L
 
 main_mixmat_race <- mixmats[[1]]
-cas_mixmat_race <- mixmats[[2]]
-main_mixmat_ag <- mixmats[[3]]
+main_mixmat_ag <- mixmats[[2]]
+cas_mixmat_race <- mixmats[[3]]
 cas_mixmat_ag <- mixmats[[4]]
 ```
 
