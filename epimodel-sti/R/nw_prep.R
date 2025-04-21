@@ -185,7 +185,7 @@ calc_targets <- function(nw, params, rel, count_type,
   if (count_type == "cross_network") {
     # calc number of people in rels
     # number of people with > 1 partners
-    final_targets <- calc_cross_network(params, rel, num)
+    final_targets <- calc_cross_network(params, rel)
   }
 
   # if true, calc nodefactor and then if true nodematch
