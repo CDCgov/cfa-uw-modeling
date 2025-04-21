@@ -1,3 +1,4 @@
+---
 vignette: >
   %\VignetteIndexEntry{Network Diagnostics}
   %\VignetteEngine{quarto::html}
