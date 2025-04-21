@@ -16,7 +16,6 @@ nw <- generate_init_network(x, seed = this_seed, assign_deg_casual = TRUE)
 # Estimate Networks ----------------------------------------------
 ## Main ---------------------------------------------------------
 main_form <- ~ edges +
-  # nodematch(~age_group, diff = TRUE, levels = c(1:4, 6:7)) +
   nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
   nodefactor(~race, levels = c(1:2, 4)) +
   nodecov(~age) +
@@ -27,7 +26,6 @@ main_form <- ~ edges +
 
 ## --- main targets ------------------------
 main_edges <- calc_targets(nw, x, "main", "edges")
-main_nm_agegp <- calc_targets(nw, x, "main", "nodematch", "age_group")
 main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race")
 main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
 main_nc_age <- calc_targets(nw, x, "main", "nodecov", "age")
@@ -37,7 +35,6 @@ main_cross <- calc_targets(nw, x, "main", "cross_network")
 
 main_targets <- unname(c(
   main_edges,
-  # main_nm_agegp[c(1:4, 6:7)],
   main_nm_race[c(1:2, 4)],
   main_nf_race[c(1:2, 4)],
   main_nc_age,
@@ -47,16 +44,6 @@ main_targets <- unname(c(
 ))
 
 main_offset <- c(rep(-Inf, 2))
-
-# switch around duration so edges (non-matched age group rels) is first
-# minus the last age group, which we drop
-mdurs <- c(x$main$duration$duration[8], x$main$duration$duration[c(1:4, 6:7)])
-
-main_diss <- dissolution_coefs(
-  dissolution = ~ offset(edges) + offset(nodematch(~age_group, diff = TRUE, levels = c(1:4, 6:7))),
-  duration = mdurs,
-  d.rate = 0
-)
 
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
@@ -107,28 +94,22 @@ nw <- set.vertex.attribute(nw, "deg_main", get_degree(main_netest$newnetwork))
 cas_form <- ~ edges +
   nodefactor(~age_group, levels = 1:6) +
   nodefactor(~race, levels = c(1:2, 4)) +
-  # nodematch(~age_group, diff = TRUE, levels = c(1:3)) +
   nodematch(~race, diff = TRUE, levels = c(1, 3:4)) +
   concurrent() +
   nodefactor(~deg_main)
 
 ## -- casual targets -------------------------------------
 cas_edges <- calc_targets(nw, x, "casual", "edges")
-cas_nm_agegp <- calc_targets(nw, x, "casual", "nodematch", "age_group")
-cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
-cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
-cas_nf_age <- calc_targets(nw, x, "casual", "nodefactor", "age")
 cas_nf_agegp <- calc_targets(nw, x, "casual", "nodefactor", "age_group")
-cas_agemix <- calc_targets(nw, x, "casual", "absdiff_sqrt_age")
+cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
+cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
 cas_conc <- calc_targets(nw, x, "casual", "concurrent")
 cas_cross <- calc_targets(nw, x, "casual", "cross_network")
 
 cas_targets <- unname(c(
   cas_edges,
-  # cas_nf_age[1:5],
   cas_nf_agegp[1:6],
   cas_nf_race[c(1:2, 4)],
-  # cas_nm_agegp[c(1:3)],
   cas_nm_race[c(1, 3:4)],
   cas_conc,
   cas_cross
@@ -286,9 +267,3 @@ comp |>
   ggplot2::geom_point() +
   ggplot2::geom_smooth(span = 0.75) +
   ggplot2::facet_wrap(~race)
-
-
-# ggplot2::ggsave(
-# filename = here::here("networks", "fits", Sys.Date(), "post_diagnostics_comps.PNG"),
-# width = 10, height = 8
-# )

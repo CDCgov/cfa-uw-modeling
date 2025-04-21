@@ -20,7 +20,7 @@ Imports:
     progressr,
     dplyr,
     networkLite (>= 1.0.1),
-    collections
+    collections,
 Suggests:
     quarto,
     testthat (>= 3.0.0),

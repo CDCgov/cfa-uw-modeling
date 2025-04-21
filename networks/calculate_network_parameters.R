@@ -163,18 +163,14 @@ if (estimate_type == "empirical") {
   # --------------------------------------------------
   out$main$duration$duration <- lsvy |>
     dplyr::filter(rel2 == "Marriage/Cohab") |>
-    dplyr::summarize(dur = srvyr::survey_median(partdur,
-      na.rm = TRUE,
-      vartype = NULL
-    ) * 4) |>
+    dplyr::summarize(
+      dur = srvyr::survey_median(partdur, na.rm = TRUE, vartype = NULL) * 4
+    ) |>
     as.numeric()
 
   out$casual$duration$duration <- lsvy |>
     dplyr::filter(rel2 == "Casual/Other", curr == 1) |>
-    dplyr::summarize(dur = srvyr::survey_median(partdur,
-      na.rm = TRUE,
-      vartype = NULL
-    ) * 4) |>
+    dplyr::summarize(dur = srvyr::survey_median(partdur, na.rm = TRUE, vartype = NULL) * 4) |>
     as.numeric()
   out$main$duration$metric <- "weeks"
   out$casual$duration$metric <- "weeks"
@@ -536,5 +532,3 @@ if (estimate_type == "predicted") {
 # save out as yaml
 params_name <- paste0("nw_params_", estimate_type, ".yaml")
 yaml::write_yaml(out, here::here("params", params_name))
-
-# nolint end

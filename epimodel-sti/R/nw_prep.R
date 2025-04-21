@@ -139,6 +139,8 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 #' @param inst_correct default = FALSE, if TRUE, adjust year-long cumulative reporting of
 #' one-time partnerships to daily or weekly counts
 #' @param time_unit default = "weeks", the desired time unit for inst reporting conversion
+#' @param level additional statification for nodedov target calculation function
+#' @param attr_squared for nodecov target calculation, use squared version of attribute? (usually, age)
 #' @export
 #'
 
@@ -311,11 +313,14 @@ inst_correction <- function(targets, time_unit = NULL) {
 #' @inheritParams calc_targets
 #' @param joint_name Name of joint attribute as found in parameter input, calculated in calc_targets()
 #'
+#'
+#'
 #' @name targets
 NULL
 
 
 #' @rdname targets
+#' @param attrs which two attributes?
 #' @export
 calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # pop counts by joint attr dist
@@ -333,6 +338,7 @@ calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
 }
 
 #' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor
 #' @export
 calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint_counts) {
   if (attr_name == joint_attrs[1]) {
@@ -375,12 +381,14 @@ calc_nodematch <- function(params, attr_name, attr_targets, rel) {
 }
 
 #' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor()
 #' @export
 calc_edges <- function(nf_joint_counts) {
   return(sum(nf_joint_counts) / 2)
 }
 
 #' @rdname targets
+#' @param edges output from calc_edges()
 #' @export
 calc_absdiff <- function(params, rel, count_type, edges) {
   avg <- params[[rel]][[count_type]]
@@ -395,11 +403,13 @@ calc_concurrent <- function(params, rel, num) {
 
 #' @rdname targets
 #' @export
-calc_cross_network <- function(params, rel, num) {
-  return(num * params[[rel]][["cross_network"]])
+calc_cross_network <- function(params, rel) {
+  return(params$pop$size * params[[rel]][["cross_network"]])
 }
 
 #' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor()
+#' @param edges output from calc_edges()
 #' @export
 calc_nodecov_age <- function(params, rel, attr_name, edges, level = NULL,
                              joint_attrs, nf_joint_counts, attr_squared) {
@@ -439,6 +449,10 @@ calc_nodecov_age <- function(params, rel, attr_name, edges, level = NULL,
 }
 
 #' @rdname targets
+#' @param edges output from calc_edges()
+#' @param final_targets vector, final ergm term targets to be checked before output
+#' @param threshold default = 0.01, proportion of expected activity based on edges that
+#' calulated target is allowed within (+/- threshold)
 #' @export
 check_targets <- function(edges, final_targets, count_type, threshold = 0.01) {
   # check that all targets are positive
