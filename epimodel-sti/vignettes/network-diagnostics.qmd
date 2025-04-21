@@ -1,0 +1,57 @@
+---
+vignette: >
+  %\VignetteIndexEntry{Network Diagnostics}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+
+This vignette demonstrates how to track network statistics of interest across simulations using EpiModelMpox.
+
+We fit a layered network of size 100,000 (representing main, casual, and instantaneous partnerships among men and women). Here, we run network diagnostics using the EpiModel package to demonstrate the fit of networks to the target statistics (drawn from behavioral parameters estimated from the National Survey of Family Growth). For main and casual networks we use dynamic diagnostics, and for the one-time network we use a static diagnostic.
+
+```{r}
+#| label: load network
+#| message: false
+#| warning: false
+library(EpiModel)
+data("nw_100000", package = "EpiModelSTI")
+data("mixmats", package = "EpiModelSTI")
+
+main_mixmat_race <- mixmats[[1]]
+main_mixmat_ag <- mixmats[[2]]
+cas_mixmat_race <- mixmats[[3]]
+cas_mixmat_ag <- mixmats[[4]]
+```
+
+# Main Network (Marriages & Cohabitations)
+```{r}
+#| label: main diagnostic
+#| message: false
+#| warning: false
+main_dynamic <- netdx(
+  nw_100000[[1]],
+  dynamic = TRUE, nsims = 10, nsteps = 500, ncores = 2
+)
+main_dynamic
+```
+
+# Casual Network
+```{r}
+#| label: casual diagnostic
+#| message: false
+#| warning: false
+casual_dynamic <- netdx(
+  nw_100000[[2]],
+  dynamic = TRUE, nsims = 10, nsteps = 500, ncores = 2
+)
+casual_dynamic
+```
+
+# One-Time Network
+```{r}
+#| label: one-time diagnostics
+#| message: false
+#| warning: false
+inst_dynamic <- netdx(nw_100000[[3]], dynamic = FALSE, nsims = 1000)
+inst_dynamic
+```

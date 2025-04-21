@@ -20,7 +20,7 @@ Imports:
     progressr,
     dplyr,
     networkLite (>= 1.0.1),
-    collections
+    collections,
 Suggests:
     quarto,
     testthat (>= 3.0.0),
@@ -31,3 +31,4 @@ RoxygenNote: 7.3.2
 Encoding: UTF-8
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
+LazyData: true

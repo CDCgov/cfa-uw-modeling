@@ -78,35 +78,36 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   age_adj[which(age_adj > 50)] <- 50
 
   if (isTRUE(assign_deg_casual) && !is.null(params$casual)) {
-    ## set obeserved casual degree from casual params by age group & race
+    int_age_range <- params$pop$age$min:params$pop$age$max
+    ## set obeserved casual degree from casual params by age & race
     ref <- data.frame(
-      age_group = rep(params$pop$age_group$levels, each = length(params$pop$race$levels)),
-      race = rep(params$pop$race$levels, times = length(params$pop$age_group$levels)),
-      prob = params$casual$nodefactor$age_group_race
+      age = rep(int_age_range, each = length(params$pop$race$levels)),
+      race = rep(params$pop$race$levels, times = length(int_age_range)),
+      prob = params$casual$nodefactor$age_race
     )
 
-    ref$comb <- paste0(ref$age_group, ref$race)
+    ref$comb <- paste0(ref$age, ref$race)
 
-    popvec <- data.frame(comb = paste0(age_group, race)) |>
+    popvec <- data.frame(comb = paste0(floor(age), race)) |>
       dplyr::left_join(ref, by = "comb")
 
-    deg_casual <- rbinom(num, 1, popvec$prob)
+    deg_casual <- rpois(num, popvec$prob)
 
     ## make attr lists
-    attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj")
-    attr_values <- list(female, race, age_group, deg_casual, age, age_adj)
+    attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj", "agesq")
+    attr_values <- list(female, race, age_group, deg_casual, age, age_adj, age^2)
   }
 
   if (isTRUE(assign_deg_casual) && is.null(params$casual)) {
     warning("assign_deg_casual = TRUE, but there are no casual parameters in yaml.
       Not setting deg_casual in network attributes.")
 
-    attr_names <- c("female", "race", "age_group", "age", "age_adj")
-    attr_values <- list(female, race, age_group, age, age_adj)
+    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq")
+    attr_values <- list(female, race, age_group, age, age_adj, age^2)
   }
   if (!assign_deg_casual) {
-    attr_names <- c("female", "race", "age_group", "age", "age_adj")
-    attr_values <- list(female, race, age_group, age, age_adj)
+    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq")
+    attr_values <- list(female, race, age_group, age, age_adj, age^2)
   }
 
   # Set attributes on network
@@ -138,12 +139,14 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 #' @param inst_correct default = FALSE, if TRUE, adjust year-long cumulative reporting of
 #' one-time partnerships to daily or weekly counts
 #' @param time_unit default = "weeks", the desired time unit for inst reporting conversion
+#' @param level additional statification for nodedov target calculation function
+#' @param attr_squared for nodecov target calculation, use squared version of attribute? (usually, age)
 #' @export
 #'
 
 calc_targets <- function(nw, params, rel, count_type,
                          attr_name = NULL, joint_attrs = c("age", "race"),
-                         inst_correct = FALSE, time_unit = "weeks") {
+                         inst_correct = FALSE, level = NULL, attr_squared = FALSE, time_unit = "weeks") {
   # Test that conditions are met to calculate specified target -----------------
   check_conditions(nw, params, rel, count_type, attr_name, joint_attrs)
 
@@ -164,6 +167,10 @@ calc_targets <- function(nw, params, rel, count_type,
     final_targets <- edges
   }
 
+  if (count_type == "nodecov") {
+    final_targets <- calc_nodecov_age(params, rel, attr_name, edges, level, joint_attrs, nf_joint_counts, attr_squared)
+  }
+
   # if true, calc target for absdiff sqrt age
   if (count_type == "absdiff_sqrt_age") {
     final_targets <- calc_absdiff(params, rel, count_type, edges)
@@ -173,6 +180,12 @@ calc_targets <- function(nw, params, rel, count_type,
     # calc number of people in rels
     # number of people with > 1 partners
     final_targets <- calc_concurrent(params, rel, num)
+  }
+
+  if (count_type == "cross_network") {
+    # calc number of people in rels
+    # number of people with > 1 partners
+    final_targets <- calc_cross_network(params, rel)
   }
 
   # if true, calc nodefactor and then if true nodematch
@@ -300,11 +313,14 @@ inst_correction <- function(targets, time_unit = NULL) {
 #' @inheritParams calc_targets
 #' @param joint_name Name of joint attribute as found in parameter input, calculated in calc_targets()
 #'
+#'
+#'
 #' @name targets
 NULL
 
 
 #' @rdname targets
+#' @param attrs which two attributes?
 #' @export
 calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # pop counts by joint attr dist
@@ -322,6 +338,7 @@ calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
 }
 
 #' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor
 #' @export
 calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint_counts) {
   if (attr_name == joint_attrs[1]) {
@@ -364,12 +381,14 @@ calc_nodematch <- function(params, attr_name, attr_targets, rel) {
 }
 
 #' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor()
 #' @export
 calc_edges <- function(nf_joint_counts) {
   return(sum(nf_joint_counts) / 2)
 }
 
 #' @rdname targets
+#' @param edges output from calc_edges()
 #' @export
 calc_absdiff <- function(params, rel, count_type, edges) {
   avg <- params[[rel]][[count_type]]
@@ -383,6 +402,57 @@ calc_concurrent <- function(params, rel, num) {
 }
 
 #' @rdname targets
+#' @export
+calc_cross_network <- function(params, rel) {
+  return(params$pop$size * params[[rel]][["cross_network"]])
+}
+
+#' @rdname targets
+#' @param nf_joint_counts output from calc_joint_nodefactor()
+#' @param edges output from calc_edges()
+#' @export
+calc_nodecov_age <- function(params, rel, attr_name, edges, level = NULL,
+                             joint_attrs, nf_joint_counts, attr_squared) {
+  # first check if cutoff exists
+  cutoff <- params[[rel]][["nodecov"]][["cutoff"]]
+
+  if (is.null(cutoff)) {
+    # get mean of value for attr(i) + attr(j) from data
+    if (attr_squared) {
+      attr_name <- paste0(attr_name, "sq")
+    }
+    attr_mean <- params[[rel]][["nodecov"]][[attr_name]]
+  }
+
+  if (!is.null(cutoff)) {
+    # Need to re-calculate edges for that cutoff group
+    nf_counts <- calc_single_attr_nodefactor(params, attr_name = "age", joint_attrs, nf_joint_counts)
+    if (level == "low") {
+      age_range <- params$pop$age$min:(cutoff - 1)
+    }
+    if (level == "high") {
+      age_range <- cutoff:params$pop$age$max
+    }
+    counts <- nf_counts[which(names(nf_counts) %in% age_range)]
+    edges <- sum(counts) / 2
+
+    # if cutoff exists, need level to clarify nodecov target
+    # get mean of value for attr(i) + attr(j) from data
+    if (attr_squared) {
+      attr_name <- paste0(attr_name, "sq")
+    }
+    attr_mean <- params[[rel]][["nodecov"]][[level]][[attr_name]]
+  }
+
+  # nodecov target is the attr_mean multiplied by the number of edges
+  return(attr_mean * edges)
+}
+
+#' @rdname targets
+#' @param edges output from calc_edges()
+#' @param final_targets vector, final ergm term targets to be checked before output
+#' @param threshold default = 0.01, proportion of expected activity based on edges that
+#' calulated target is allowed within (+/- threshold)
 #' @export
 check_targets <- function(edges, final_targets, count_type, threshold = 0.01) {
   # check that all targets are positive
@@ -407,15 +477,16 @@ check_targets <- function(edges, final_targets, count_type, threshold = 0.01) {
     }
   }
 
-  if (count_type %in% c("concurrent", "absdiff_sqrt_age")) {
+  if (count_type %in% c("concurrent", "absdiff_sqrt_age", "nodecov", "cross_network")) {
     if (length(final_targets) > 1) {
-      stop("target must be of length 1 for concurrent and absdiff_sqrt_age targets")
+      stop("target must be of length 1 for nodecov, concurrent, cross_network and absdiff_sqrt_age, targets")
     }
   }
 }
 
 #' @rdname targets
 #' @export
+# nolint start
 check_conditions <- function(nw, params, rel, count_type, attr_name, joint_attrs) {
   if (!"network" %in% class(nw)) {
     stop("inputted initial network must be a network object")
@@ -426,9 +497,12 @@ check_conditions <- function(nw, params, rel, count_type, attr_name, joint_attrs
   if (!rel %in% names(params)) {
     stop("Specified relationship type does not appear in parameters list")
   }
-  if (!count_type %in% c("edges", "nodefactor", "nodematch", "absdiff_sqrt_age", "concurrent")) {
+  if (!count_type %in% c(
+    "edges", "nodefactor", "nodematch", "absdiff_sqrt_age",
+    "concurrent", "nodecov", "cross_network"
+  )) {
     stop("This function is only designed to estimate targets
-                for edges, nodefactor, nodematch, absdiff by sqrt age, or concurrent ergm terms")
+                for edges, nodefactor, nodematch, absdiff by sqrt age, nodecov, cross_network or concurrent ergm terms")
   }
   if (count_type != "edges" && !count_type %in% names(params[[rel]])) {
     stop("Specified count type does not appear in parameter list for this relationship type")
@@ -437,7 +511,11 @@ check_conditions <- function(nw, params, rel, count_type, attr_name, joint_attrs
     stop("calculating edges without joint attr distribution not currently supported")
   }
   if (!is.null(attr_name) && !attr_name %in% c(names(params[[rel]][[count_type]]), joint_attrs)) {
-    stop("Specified attribute name does not appear in parameter list for this relationship and count type")
+    if ((attr_name == "age_group" && "age" %in% joint_attrs) && count_type == "nodefactor") {
+
+    } else {
+      stop("Specified attribute name does not appear in parameter list for this relationship and count type")
+    }
   }
 
   joint_name <- paste0(joint_attrs[1], "_", joint_attrs[2])
@@ -450,3 +528,4 @@ check_conditions <- function(nw, params, rel, count_type, attr_name, joint_attrs
     or are specifed in the wrong order")
   }
 }
+# nolint end
