@@ -7,6 +7,7 @@ this_seed <- 12345
 ncores <- parallel::detectCores() - 1L
 estimate_type <- "predicted"
 x <- yaml::read_yaml(here::here("params", paste0("nw_params_", estimate_type, ".yaml")))
+x$pop$size <- 50000
 main_mixmat_race <- readRDS(here::here("params", paste0("main_mixmat_", estimate_type, ".rds")))
 cas_mixmat_race <- readRDS(here::here("params", paste0("casual_mixmat_", estimate_type, ".rds")))
 main_mixmat_ag <- readRDS(here::here("params", paste0("main_mixmat_ag_", estimate_type, ".rds")))
@@ -184,7 +185,7 @@ inst_netest <- EpiModel::netest(
 )
 
 ##### Save out
-nw_100000 <- list(main_netest, cas_netest, inst_netest)
+nw_50000 <- list(main_netest, cas_netest, inst_netest)
 mixmats <- list(main_mixmat_race, main_mixmat_ag, cas_mixmat_race, cas_mixmat_ag)
 setwd("epimodel-sti")
-usethis::use_data(nw_100000, mixmats, overwrite = TRUE)
+usethis::use_data(nw_50000, mixmats, overwrite = TRUE)

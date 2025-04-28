@@ -126,23 +126,27 @@ control_mgen <- function(
     nsteps = 10,
     start = 1,
     cumulative.edgelist = FALSE,
-    resimulate.network = TRUE,
-    truncate.el.cuml = 0,
-    # modules
-    amr.FUN = amr_mgen,
-    initialize.FUN = initialize_mgen,
-    infection.FUN = transmit_mgen,
-    progress.FUN = progress_mgen,
-    prevalence.FUN = trackers_mgen,
-    resim_nets.FUN = resim_nets_mgen,
-    summary_nets.FUN = summary_nets,
-    tx.FUN = tx_mgen,
-    verbose.FUN = verbose.net,
-    cleanup.FUN = cleanup_msm,
-    # end modules
-    save.nwstats = FALSE,
+    save.nwstats = TRUE,
     nwstats.formula = "formation",
     tergmLite = TRUE,
+    truncate.el.cuml = 0,
+    # modules
+    # amr.FUN = amr_mgen,
+    # initialize.FUN = initialize_mgen,
+    initialize.FUN = initialize.net,
+    # infection.FUN = transmit_mgen,
+    infection.FUN = infection.net,
+    recovery.FUN = recovery.net,
+    # progress.FUN = progress_mgen,
+    # prevalence.FUN = trackers_mgen,
+    prevalence.FUN = prevalence.net,
+    resim_nets.FUN = resim_nets,
+    # resim_nets.FUN = resim_nets_mgen
+    summary_nets.FUN = summary_nets,
+    # tx.FUN = tx_mgen,
+    verbose.FUN = verbose.net,
+    # cleanup.FUN = cleanup_msm,
+    # end modules
     save.network = FALSE,
     tergmLite.track.duration = FALSE,
     set.control.ergm = control.simulate.formula(
@@ -153,7 +157,7 @@ control_mgen <- function(
     ),
     save.other = c("attr", "temp", "el", "net_attr"),
     verbose = FALSE,
-    dat.updates = resimnet_updates,
+    dat.updates = resimnet_updates_sti,
     ...) {
   formal.args <- formals(sys.function())
   dot.args <- list(...)
@@ -200,18 +204,17 @@ control_mgen <- function(
 #'
 #' @export
 #'
-resimnet_updates <- function(dat, at, network) {
+resimnet_updates_sti <- function(dat, at, network) {
   if (network == 0L) {
-    dat <- set_attr(dat, "deg.pers", EpiModel::get_degree(dat$el[[2]]))
+    dat <- set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
   } else if (network == 1L) {
-    dat <- set_attr(dat, "deg.main", EpiModel::get_degree(dat$el[[1]]))
+    dat <- set_attr(dat, "deg_main", EpiModel::get_degree(dat$run$el[[1]]))
   } else if (network == 2L) {
-    dat <- set_attr(dat, "deg.pers", EpiModel::get_degree(dat$el[[2]]))
-    dat <- set_attr(dat, "deg.tot", pmin(
-      get_attr(dat, "deg.main") +
-        EpiModel::get_degree(dat[["el"]][[2]]),
-      3
-    ))
+    dat <- set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
+    dat <- set_attr(
+      dat, "deg_tot",
+      get_attr(dat, "deg_main") + EpiModel::get_degree(dat$run$el[[2]])
+    )
   }
   return(dat)
 }

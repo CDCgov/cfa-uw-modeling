@@ -1,10 +1,10 @@
 #' Fitted Multilayer Network
 #' @format
-#' The `nw_100000` object is a
+#' The `nw_50000` object is a
 #' list of three netest objects representing main, casual, and instantaneous partnerships.
 
 #' @source Generated using the {EpiModelSTI} R package
-"nw_100000"
+"nw_50000"
 
 #' Mixing Matricies
 #' @format
