@@ -7,7 +7,7 @@ this_seed <- 12345
 ncores <- parallel::detectCores() - 1L
 estimate_type <- "predicted"
 x <- yaml::read_yaml(here::here("params", paste0("nw_params_", estimate_type, ".yaml")))
-x$pop$size <- 50000
+dept_rate <- (1 / (50 - 15)) * (1 / 365)
 main_mixmat_race <- readRDS(here::here("params", paste0("main_mixmat_", estimate_type, ".rds")))
 cas_mixmat_race <- readRDS(here::here("params", paste0("casual_mixmat_", estimate_type, ".rds")))
 main_mixmat_ag <- readRDS(here::here("params", paste0("main_mixmat_ag_", estimate_type, ".rds")))
@@ -23,7 +23,8 @@ main_form <- ~ edges +
   nodecov(~agesq) +
   absdiff(~ sqrt(age_adj)) +
   nodefactor(~ deg_casual > 0) +
-  offset(nodefactor(~ floor(age), levels = 1:2))
+  # offset(nodefactor(~ floor(age), levels = 1:2)) +
+  offset(nodefactor(~olderpartner))
 
 ## --- main targets ------------------------
 main_edges <- calc_targets(nw, x, "main", "edges")
@@ -44,20 +45,17 @@ main_targets <- unname(c(
   main_cross
 ))
 
-main_offset <- c(rep(-Inf, 2))
+main_offset <- c(rep(-Inf, 1))
 
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$main$duration$duration$overall,
-  d.rate = 0
+  d.rate = dept_rate * 1.5
 )
 
 # no same-sex ties, no concurrency in main network
-main_constraints <- ~
-  bd(maxout = 1) +
-    sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = main_mixmat_race)
+main_constraints <- ~ bd(maxout = 1) + blocks(attr = ~female, levels2 = diag(TRUE, 2))
+main_mcmc_props <- ~ sparse + strat(attr = ~race, pmat = main_mixmat_race)
 
 main_netest <- EpiModel::netest(
   nw = nw,
@@ -67,6 +65,7 @@ main_netest <- EpiModel::netest(
   coef.diss = main_diss,
   constraints = main_constraints,
   set.control.ergm = control.ergm(
+    MCMC.prop = main_mcmc_props,
     MCMC.interval = 2048 * 10,
     MCMC.samplesize = 2048 * 10,
     SA.interval = 2048 * 10,
@@ -84,7 +83,8 @@ cas_form <- ~ edges +
   nodefactor(~race, levels = c(1:2, 4)) +
   nodematch(~race, diff = TRUE, levels = c(1, 3:4)) +
   concurrent() +
-  nodefactor(~deg_main)
+  nodefactor(~deg_main) +
+  offset(nodefactor(~olderpartner))
 
 ## -- casual targets -------------------------------------
 cas_edges <- calc_targets(nw, x, "casual", "edges")
@@ -103,19 +103,19 @@ cas_targets <- unname(c(
   cas_cross
 ))
 
-cas_offset <- c()
+cas_offset <- c(-Inf)
 
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$casual$duration$duration$overall,
-  d.rate = 0
+  d.rate = dept_rate
 )
 
-cas_constraints <- ~
-  sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = cas_mixmat_race) +
-    strat(attr = ~age_group, pmat = cas_mixmat_ag)
+cas_constraints <- ~ bd(maxout = 3) + blocks(attr = ~female, levels2 = diag(TRUE, 2))
+
+cas_mcmc_props <- ~ sparse +
+  strat(attr = ~race, pmat = cas_mixmat_race) +
+  strat(attr = ~age_group, pmat = cas_mixmat_ag)
 
 cas_netest <- EpiModel::netest(
   nw = nw,
@@ -125,6 +125,7 @@ cas_netest <- EpiModel::netest(
   coef.diss = cas_diss,
   constraints = cas_constraints,
   set.control.ergm = control.ergm(
+    MCMC.prop = cas_mcmc_props,
     MCMC.interval = 2048 * 10,
     MCMC.samplesize = 2048 * 10,
     SA.interval = 2048 * 10,
@@ -163,10 +164,7 @@ inst_diss <- dissolution_coefs(
   d.rate = 0
 )
 
-inst_constraints <- ~
-  sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2))
-
+inst_constraints <- ~ sparse + blocks(attr = ~female, levels2 = diag(TRUE, 2))
 
 inst_netest <- EpiModel::netest(
   nw = nw,
@@ -176,6 +174,7 @@ inst_netest <- EpiModel::netest(
   coef.diss = inst_diss,
   constraints = inst_constraints,
   set.control.ergm = control.ergm(
+    MCMC.prop = ~sparse,
     MCMC.interval = 2048 * 10,
     MCMC.samplesize = 2048 * 10,
     SA.interval = 2048 * 10,

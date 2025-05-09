@@ -11,7 +11,7 @@ w <- readRDS(here::here("data", "nsfg_wide.rds"))
 l <- readRDS(here::here("data", "nsfg_long.rds"))
 
 out <- list()
-out$pop$size <- 100000
+out$pop$size <- 50000
 
 out$pop$female$levels <- 0:1
 out$pop$female$dist <- c(0.5, 0.5)
@@ -25,7 +25,7 @@ out$pop$race$levels <- c("B", "H", "O", "W")
 out$pop$race$dist <- c(0.12, 0.19, 0.11, 0.58) # based on 2020 census
 
 # rake surveys to population margins
-pop_agegroup <- data.frame(age_group = names(table(w$age_group)), Freq = out$pop$age_group$dist * 144764299)
+pop_agegroup <- data.frame(age_group = out$pop$age_group$levels, Freq = out$pop$age_group$dist * 144764299)
 pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * 144764299)
 
 wsvy <- srvyr::as_survey_design(w, weights = weight)
@@ -320,6 +320,16 @@ if (estimate_type == "predicted") {
   out$inst$nodefactor$age_race <- pred$deg_inst
   out$inst$summary_time <- "year"
 
+  # Third: older partner dist by sex and age_group (population-level info)
+  op_glm <- survey::svyglm(olderpartner ~ age + race + agesq + female,
+    design = wsvy, family = quasibinomial()
+  )
+  wsvy$variables$olderpartner <- predict(op_glm, type = "response", newdata = wsvy$variables)
+  op_dist <- wsvy |>
+    dplyr::group_by(female, age_group) |>
+    dplyr::summarize(op = srvyr::survey_mean(olderpartner, vartype = NULL)) |>
+    dplyr::pull()
+  out$pop$olderpartner_by_female_age_group <- op_dist
   # -----------------------------------------------------------------
   # Estimate Within-Partnership Characteristics
   # -----------------------------------------------------------------
@@ -511,12 +521,12 @@ if (estimate_type == "predicted") {
 
   durs_main_single <- lsvy |>
     dplyr::filter(rel2 == "Marriage/Cohab") |>
-    dplyr::summarize(med = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::summarize(mean = srvyr::survey_mean(dur * (365 / 12), vartype = NULL)) |>
     dplyr::pull()
 
   durs_cas_single <- lsvy |>
     dplyr::filter(rel2 == "Casual/Other") |>
-    dplyr::summarize(med = srvyr::survey_median(dur * (365 / 12), vartype = NULL)) |>
+    dplyr::summarize(mean = srvyr::survey_mean(dur * (365 / 12), vartype = NULL)) |>
     dplyr::pull()
 
   ## Update parameters

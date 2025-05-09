@@ -58,8 +58,23 @@ mod_departures <- function(dat, at) {
     ## Update nodal attributes
     active[idsDept] <- 0
     exitTime[idsDept] <- at
-  }
 
+    ## If departing nodes are in main relationship,
+    ## Set partner's olderpartner attr to 1
+    el <- get_edgelist(dat = dat, network = 1) # get edgelist
+    rels1 <- which(el[, 1] %in% idsDept) # any departing id in row 1
+    rels2 <- which(el[, 2] %in% idsDept) # any departing id in row 2
+    allrels <- c(rels1, rels2) # combine
+
+    if (length(allrels) > 0) {
+      allParts <- el[allrels, ] # get all IDs (departing and partner)
+      idsParts <- setdiff(allParts, idsDept) # extract partner IDs
+      # Update Partner Attribute
+      olderpartner <- get_attr(dat, "olderpartner")
+      olderpartner[idsParts] <- 1
+      dat <- set_attr(dat, "olderpartner", olderpartner)
+    }
+  }
 
   ## Reset attr
   dat <- set_attr(dat, "active", active)
@@ -119,6 +134,7 @@ mod_arrivals <- function(dat, at) {
     dat <- append_attr(dat, "age_adj", age_adj, nArrivals)
     dat <- append_attr(dat, "race", arrivalRace, nArrivals)
     dat <- append_attr(dat, "female", arrivalSex, nArrivals)
+    dat <- append_attr(dat, "olderpartner", 0, nArrivals)
   }
 
   ## Summary statistics
