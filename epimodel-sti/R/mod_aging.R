@@ -30,7 +30,7 @@ mod_aging <- function(dat, at) {
 
   ## Summary statistics ##
   dat <- set_epi(dat, "meanAge", at, mean(age, na.rm = TRUE))
-  return(dat)
+  return(dat) # nolint
 }
 
 # Departures Module ----------------------------------------------------
@@ -83,7 +83,7 @@ mod_departures <- function(dat, at) {
   ## Summary statistics
   dat <- set_epi(dat, "d.flow", at, nDepts)
 
-  return(dat)
+  return(dat) # nolint
 }
 
 
@@ -140,5 +140,5 @@ mod_arrivals <- function(dat, at) {
   ## Summary statistics
   dat <- set_epi(dat, "a.flow", at, nArrivals)
 
-  return(dat)
+  return(dat) # nolint
 }

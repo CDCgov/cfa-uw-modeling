@@ -63,7 +63,7 @@ if (estimate_type == "empirical") {
       dplyr::mutate(prop = sum / pop) |> # nolint
       dplyr::select(-c("sum", "pop"))
 
-    return(out)
+    return(out) # nolint
   }
 
   out$main$nodefactor$age_race <- unname(unlist(
