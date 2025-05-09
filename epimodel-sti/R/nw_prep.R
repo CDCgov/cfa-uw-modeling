@@ -49,6 +49,7 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
     params$pop$race$levels,
     params$pop$race$dist
   ))
+
   ### age variables
   age_group <- sample(EpiModel::apportion_lr(
     num,
@@ -61,7 +62,7 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   # calc age group width
   width <- ((params$pop$age$max + 1) - params$pop$age$min) / length(params$pop$age_group$levels)
   # possible ages
-  ages <- seq(from = params$pop$age$min, to = params$pop$age$max + 1, by = 1 / 52)
+  ages <- seq(from = params$pop$age$min, to = params$pop$age$max + 1, by = 1 / 365)
 
   # assign age
   for (i in seq_along(params$pop$age_group$levels)) {
@@ -76,6 +77,26 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   age_adj <- age
   age_adj[which(female == 1)] <- age[which(female == 1)] + params$pop$age$female_age_adj
   age_adj[which(age_adj > 50)] <- 50
+
+  # make older partner flag
+  olderpartner_probs <- dplyr::case_when(
+    age_group == 1 & female == 0 ~ params$pop$olderpartner_by_female_age_group[1],
+    age_group == 2 & female == 0 ~ params$pop$olderpartner_by_female_age_group[2],
+    age_group == 3 & female == 0 ~ params$pop$olderpartner_by_female_age_group[3],
+    age_group == 4 & female == 0 ~ params$pop$olderpartner_by_female_age_group[4],
+    age_group == 5 & female == 0 ~ params$pop$olderpartner_by_female_age_group[5],
+    age_group == 6 & female == 0 ~ params$pop$olderpartner_by_female_age_group[6],
+    age_group == 7 & female == 0 ~ params$pop$olderpartner_by_female_age_group[7],
+    age_group == 1 & female == 1 ~ params$pop$olderpartner_by_female_age_group[8],
+    age_group == 2 & female == 1 ~ params$pop$olderpartner_by_female_age_group[9],
+    age_group == 3 & female == 1 ~ params$pop$olderpartner_by_female_age_group[10],
+    age_group == 4 & female == 1 ~ params$pop$olderpartner_by_female_age_group[11],
+    age_group == 5 & female == 1 ~ params$pop$olderpartner_by_female_age_group[12],
+    age_group == 6 & female == 1 ~ params$pop$olderpartner_by_female_age_group[13],
+    age_group == 7 & female == 1 ~ params$pop$olderpartner_by_female_age_group[14],
+  )
+
+  olderpartner <- rbinom(num, 1, olderpartner_probs)
 
   if (isTRUE(assign_deg_casual) && !is.null(params$casual)) {
     int_age_range <- params$pop$age$min:params$pop$age$max
@@ -94,26 +115,24 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
     deg_casual <- rpois(num, popvec$prob)
 
     ## make attr lists
-    attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj", "agesq")
-    attr_values <- list(female, race, age_group, deg_casual, age, age_adj, age^2)
+    attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj", "agesq", "olderpartner")
+    attr_values <- list(female, race, age_group, deg_casual, age, age_adj, age^2, olderpartner)
   }
 
   if (isTRUE(assign_deg_casual) && is.null(params$casual)) {
     warning("assign_deg_casual = TRUE, but there are no casual parameters in yaml.
       Not setting deg_casual in network attributes.")
 
-    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq")
-    attr_values <- list(female, race, age_group, age, age_adj, age^2)
+    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq", "olderpartner")
+    attr_values <- list(female, race, age_group, age, age_adj, age^2, olderpartner)
   }
   if (!assign_deg_casual) {
-    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq")
-    attr_values <- list(female, race, age_group, age, age_adj, age^2)
+    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq", "olderpartner")
+    attr_values <- list(female, race, age_group, age, age_adj, age^2, olderpartner)
   }
 
   # Set attributes on network
   nw <- network::set.vertex.attribute(nw, attr_names, attr_values)
-
-  return(nw)
 }
 
 #' @title Calculate Network Target Statistics
@@ -247,7 +266,7 @@ get_nw_attr_vecs <- function(nw) {
     }
   }
 
-  return(attrs)
+  return(attrs) # nolint
 }
 
 #' @title Make Empirical Mixing Matrix Symmetrical
@@ -272,7 +291,8 @@ matrix_symmetrical <- function(mat) {
       newmat[i, j] <- mean(c(mat[i, j], mat[j, i]))
     }
   }
-  return(newmat)
+
+  return(newmat) # nolint
 }
 
 #' @title Target correction for instantaneous network
@@ -303,7 +323,7 @@ inst_correction <- function(targets, time_unit = NULL) {
     }
   }
 
-  return(targets / unit_correction)
+  return(targets / unit_correction) # nolint
 }
 
 #' @title Target Stats Calculation Helpers
@@ -334,7 +354,7 @@ calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # calculate expected nodefactor targets
   nf_joint_counts <- counts * nf_joint_probs
 
-  return(nf_joint_counts)
+  return(nf_joint_counts) # nolint
 }
 
 #' @rdname targets
@@ -365,7 +385,7 @@ calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint
     attr_targets <- as.numeric(summed_targets[, "tars"])
   }
 
-  return(attr_targets)
+  return(attr_targets) # nolint
 }
 
 calc_nodematch <- function(params, attr_name, attr_targets, rel) {
@@ -377,14 +397,14 @@ calc_nodematch <- function(params, attr_name, attr_targets, rel) {
   # how many edges of the estimated above activity are matching
   final_targets <- attr_probs_nodematch * attr_targets / 2
 
-  return(final_targets)
+  return(final_targets) # nolint
 }
 
 #' @rdname targets
 #' @param nf_joint_counts output from calc_joint_nodefactor()
 #' @export
 calc_edges <- function(nf_joint_counts) {
-  return(sum(nf_joint_counts) / 2)
+  return(sum(nf_joint_counts) / 2) # nolint
 }
 
 #' @rdname targets
@@ -392,19 +412,19 @@ calc_edges <- function(nf_joint_counts) {
 #' @export
 calc_absdiff <- function(params, rel, count_type, edges) {
   avg <- params[[rel]][[count_type]]
-  return(avg * edges)
+  return(avg * edges) # nolint
 }
 
 #' @rdname targets
 #' @export
 calc_concurrent <- function(params, rel, num) {
-  return(num * params[[rel]][["concurrent"]])
+  return(num * params[[rel]][["concurrent"]]) # nolint
 }
 
 #' @rdname targets
 #' @export
 calc_cross_network <- function(params, rel) {
-  return(params$pop$size * params[[rel]][["cross_network"]])
+  return(params$pop$size * params[[rel]][["cross_network"]]) # nolint
 }
 
 #' @rdname targets

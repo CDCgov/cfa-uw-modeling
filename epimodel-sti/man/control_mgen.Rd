@@ -11,28 +11,24 @@ control_mgen(
   nsteps = 10,
   start = 1,
   cumulative.edgelist = FALSE,
-  resimulate.network = TRUE,
-  truncate.el.cuml = 0,
-  amr.FUN = amr_mgen,
-  initialize.FUN = initialize_mgen,
-  infection.FUN = transmit_mgen,
-  progress.FUN = progress_mgen,
-  prevalence.FUN = trackers_mgen,
-  resim_nets.FUN = resim_nets_mgen,
-  summary_nets.FUN = summary_nets,
-  tx.FUN = tx_mgen,
-  verbose.FUN = verbose.net,
-  cleanup.FUN = cleanup_msm,
-  save.nwstats = FALSE,
+  save.nwstats = TRUE,
   nwstats.formula = "formation",
   tergmLite = TRUE,
+  truncate.el.cuml = 0,
+  initialize.FUN = initialize.net,
+  infection.FUN = infection.net,
+  recovery.FUN = recovery.net,
+  prevalence.FUN = prevalence.net,
+  resim_nets.FUN = resim_nets,
+  summary_nets.FUN = summary_nets,
+  verbose.FUN = verbose.net,
   save.network = FALSE,
   tergmLite.track.duration = FALSE,
   set.control.ergm = control.simulate.formula(MCMC.burnin = 2e+05),
   set.control.tergm = control.simulate.formula.tergm(MCMC.burnin.min = 5000),
   save.other = c("attr", "temp", "el", "net_attr"),
   verbose = FALSE,
-  dat.updates = resimnet_updates,
+  dat.updates = resimnet_updates_sti,
   ...
 )
 }
@@ -53,6 +49,16 @@ the simulation with different parameters.}
 \item{cumulative.edgelist}{If \code{TRUE}, models tracks a cumulative edgelist (a historical list of
 all partners within each network over time), useful for partner services models.}
 
+\item{save.nwstats}{Calculate and save network statistics as defined in the
+\code{simnet} modules.}
+
+\item{nwstats.formula}{Right-hand side formula for network statistics to
+monitor, with default \code{"formation"} equal to the model formula.
+Supports \code{\link{multilayer}} specification.}
+
+\item{tergmLite}{Logical indicating usage of \code{tergmLite} (non-modifiable
+currently for \code{EpiModelHIV}).}
+
 \item{truncate.el.cuml}{Number of time steps of the cumulative edgelist to retain. See help file
 for \code{EpiModel::update_cumulative_edgelist} for details}
 
@@ -66,19 +72,6 @@ each time step.}
 
 \item{verbose.FUN}{Module function to print model progress to the console or
 external text files.}
-
-\item{cleanup.FUN}{Module function to tidy the \code{netsim_dat} object at the end
-of each step.}
-
-\item{save.nwstats}{Calculate and save network statistics as defined in the
-\code{simnet} modules.}
-
-\item{nwstats.formula}{Right-hand side formula for network statistics to
-monitor, with default \code{"formation"} equal to the model formula.
-Supports \code{\link{multilayer}} specification.}
-
-\item{tergmLite}{Logical indicating usage of \code{tergmLite} (non-modifiable
-currently for \code{EpiModelHIV}).}
 
 \item{save.network}{If \code{TRUE}, networkLite object is saved at simulation end.}
 
@@ -120,6 +113,9 @@ partnerships.}
 \item{condoms.FUN}{Module function to simulate condom use within acts.}
 
 \item{prev.FUN}{Module function to calculate prevalence summary statistics.}
+
+\item{cleanup.FUN}{Module function to tidy the \code{netsim_dat} object at the end
+of each step.}
 }
 \value{
 A list object of class \code{control.net}, which can be passed to the EpiModel function \code{\link{netsim}}.

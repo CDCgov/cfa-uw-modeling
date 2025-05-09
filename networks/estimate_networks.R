@@ -154,7 +154,7 @@ cas_netest <- EpiModel::netest(
 
 cas_dynamic <- netdx(
   cas_netest,
-  dynamic = TRUE, nsims = 5, nsteps = 500, ncores = ncores
+  dynamic = TRUE, nsims = 10, nsteps = 1000, ncores = ncores
 )
 cas_dynamic
 

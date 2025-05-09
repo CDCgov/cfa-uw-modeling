@@ -14,7 +14,7 @@ We fit a layered network of size 100,000 (representing main, casual, and instant
 #| message: false
 #| warning: false
 library(EpiModel)
-data("nw_100000", package = "EpiModelSTI")
+data("nw_50000", package = "EpiModelSTI")
 data("mixmats", package = "EpiModelSTI")
 
 main_mixmat_race <- mixmats[[1]]
