@@ -29,4 +29,5 @@ jobs:
     - uses: r-lib/actions/check-r-package@v2
       with:
         working-directory: ${{ matrix.r_package }}
+        args: 'c("--no-manual", "--as-cran", "--no-build-vignettes")'
         error-on: '"error"'

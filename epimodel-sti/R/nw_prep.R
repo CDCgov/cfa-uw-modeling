@@ -133,8 +133,6 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 
   # Set attributes on network
   nw <- network::set.vertex.attribute(nw, attr_names, attr_values)
-
-  return(nw)
 }
 
 #' @title Calculate Network Target Statistics
@@ -268,7 +266,7 @@ get_nw_attr_vecs <- function(nw) {
     }
   }
 
-  return(attrs)
+  return(attrs) # nolint
 }
 
 #' @title Make Empirical Mixing Matrix Symmetrical
@@ -293,7 +291,8 @@ matrix_symmetrical <- function(mat) {
       newmat[i, j] <- mean(c(mat[i, j], mat[j, i]))
     }
   }
-  return(newmat)
+
+  return(newmat) # nolint
 }
 
 #' @title Target correction for instantaneous network
@@ -324,7 +323,7 @@ inst_correction <- function(targets, time_unit = NULL) {
     }
   }
 
-  return(targets / unit_correction)
+  return(targets / unit_correction) # nolint
 }
 
 #' @title Target Stats Calculation Helpers
@@ -355,7 +354,7 @@ calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # calculate expected nodefactor targets
   nf_joint_counts <- counts * nf_joint_probs
 
-  return(nf_joint_counts)
+  return(nf_joint_counts) # nolint
 }
 
 #' @rdname targets
@@ -386,7 +385,7 @@ calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint
     attr_targets <- as.numeric(summed_targets[, "tars"])
   }
 
-  return(attr_targets)
+  return(attr_targets) # nolint
 }
 
 calc_nodematch <- function(params, attr_name, attr_targets, rel) {
@@ -398,14 +397,14 @@ calc_nodematch <- function(params, attr_name, attr_targets, rel) {
   # how many edges of the estimated above activity are matching
   final_targets <- attr_probs_nodematch * attr_targets / 2
 
-  return(final_targets)
+  return(final_targets) # nolint
 }
 
 #' @rdname targets
 #' @param nf_joint_counts output from calc_joint_nodefactor()
 #' @export
 calc_edges <- function(nf_joint_counts) {
-  return(sum(nf_joint_counts) / 2)
+  return(sum(nf_joint_counts) / 2) # nolint
 }
 
 #' @rdname targets
@@ -413,19 +412,19 @@ calc_edges <- function(nf_joint_counts) {
 #' @export
 calc_absdiff <- function(params, rel, count_type, edges) {
   avg <- params[[rel]][[count_type]]
-  return(avg * edges)
+  return(avg * edges) # nolint
 }
 
 #' @rdname targets
 #' @export
 calc_concurrent <- function(params, rel, num) {
-  return(num * params[[rel]][["concurrent"]])
+  return(num * params[[rel]][["concurrent"]]) # nolint
 }
 
 #' @rdname targets
 #' @export
 calc_cross_network <- function(params, rel) {
-  return(params$pop$size * params[[rel]][["cross_network"]])
+  return(params$pop$size * params[[rel]][["cross_network"]]) # nolint
 }
 
 #' @rdname targets

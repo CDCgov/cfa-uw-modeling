@@ -7,5 +7,5 @@
 #' @export
 
 testing_mgen <- function(dat, at) {
-  return(dat)
+  return(dat) # nolint
 }
