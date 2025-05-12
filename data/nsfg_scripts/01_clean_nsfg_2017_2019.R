@@ -368,10 +368,18 @@ d <- d |> mutate(
 ## Age Group (& 50 yr old adj) ------- #############
 # make all 50-year olds 49.9 (they were 49 at screener interview,)
 d <- d |>
-  mutate(age = ifelse(age == 50, 49.9, age))
-
-# make age groups
-d$age_group <- cut(round(d$age), 7)
+  mutate(
+    age = ifelse(age == 50, 49.9, age),
+    age_group = dplyr::case_when(
+      age < 20 ~ 1,
+      age >= 20 & age < 25 ~ 2,
+      age >= 25 & age < 30 ~ 3,
+      age >= 30 & age < 35 ~ 4,
+      age >= 35 & age < 40 ~ 5,
+      age >= 40 & age < 45 ~ 6,
+      age >= 45 ~ 7
+    )
+  )
 
 d <- d |> ungroup()
 
@@ -571,9 +579,18 @@ m <- m |> mutate(
 
 # Age Group --------- ################
 m <- m |>
-  mutate(age = ifelse(age == 50, 49.9, age))
-
-m$age_group <- cut(round(m$age), 7)
+  mutate(
+    age = ifelse(age == 50, 49.9, age),
+    age_group = dplyr::case_when(
+      age < 20 ~ 1,
+      age >= 20 & age < 25 ~ 2,
+      age >= 25 & age < 30 ~ 3,
+      age >= 30 & age < 35 ~ 4,
+      age >= 35 & age < 40 ~ 5,
+      age >= 40 & age < 45 ~ 6,
+      age >= 45 ~ 7
+    )
+  )
 
 m <- m |> ungroup()
 

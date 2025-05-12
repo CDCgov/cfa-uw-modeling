@@ -11,28 +11,30 @@ control_mgen(
   nsteps = 10,
   start = 1,
   cumulative.edgelist = FALSE,
-  resimulate.network = TRUE,
-  truncate.el.cuml = 0,
-  amr.FUN = amr_mgen,
-  initialize.FUN = initialize_mgen,
-  infection.FUN = transmit_mgen,
-  progress.FUN = progress_mgen,
-  prevalence.FUN = trackers_mgen,
-  resim_nets.FUN = resim_nets_mgen,
-  summary_nets.FUN = summary_nets,
-  tx.FUN = tx_mgen,
-  verbose.FUN = verbose.net,
-  cleanup.FUN = cleanup_msm,
-  save.nwstats = FALSE,
+  save.nwstats = TRUE,
   nwstats.formula = "formation",
   tergmLite = TRUE,
+  truncate.el.cuml = 0,
+  amr.FUN = NULL,
+  arrival.FUN = NULL,
+  departure.FUN = NULL,
+  aging.FUN = NULL,
+  initialize.FUN = EpiModel::initialize.net,
+  infection.FUN = EpiModel::infection.net,
+  recovery.FUN = EpiModel::recovery.net,
+  progress.FUN = NULL,
+  prevalence.FUN = EpiModel::prevalence.net,
+  resim_nets.FUN = EpiModel::resim_nets,
+  summary_nets.FUN = EpiModel::summary_nets,
+  tx.FUN = NULL,
+  verbose.FUN = EpiModel::verbose.net,
   save.network = FALSE,
   tergmLite.track.duration = FALSE,
-  set.control.ergm = control.simulate.formula(MCMC.burnin = 2e+05),
-  set.control.tergm = control.simulate.formula.tergm(MCMC.burnin.min = 5000),
+  set.control.ergm = ergm::control.simulate.formula(MCMC.burnin = 2e+05),
+  set.control.tergm = tergm::control.simulate.formula.tergm(MCMC.burnin.min = 5000),
   save.other = c("attr", "temp", "el", "net_attr"),
   verbose = FALSE,
-  dat.updates = resimnet_updates,
+  dat.updates = resimnet_updates_sti,
   ...
 )
 }
@@ -53,23 +55,6 @@ the simulation with different parameters.}
 \item{cumulative.edgelist}{If \code{TRUE}, models tracks a cumulative edgelist (a historical list of
 all partners within each network over time), useful for partner services models.}
 
-\item{truncate.el.cuml}{Number of time steps of the cumulative edgelist to retain. See help file
-for \code{EpiModel::update_cumulative_edgelist} for details}
-
-\item{initialize.FUN}{Module function to use for initialization of the epidemic model.}
-
-\item{resim_nets.FUN}{Module function for network resimulation at each time
-step.}
-
-\item{summary_nets.FUN}{Module function for network statistic extraction at
-each time step.}
-
-\item{verbose.FUN}{Module function to print model progress to the console or
-external text files.}
-
-\item{cleanup.FUN}{Module function to tidy the \code{netsim_dat} object at the end
-of each step.}
-
 \item{save.nwstats}{Calculate and save network statistics as defined in the
 \code{simnet} modules.}
 
@@ -79,6 +64,38 @@ Supports \code{\link{multilayer}} specification.}
 
 \item{tergmLite}{Logical indicating usage of \code{tergmLite} (non-modifiable
 currently for \code{EpiModelHIV}).}
+
+\item{truncate.el.cuml}{Number of time steps of the cumulative edgelist to retain. See help file
+for \code{EpiModel::update_cumulative_edgelist} for details}
+
+\item{amr.FUN}{Module function for antimicrobial resistance.}
+
+\item{arrival.FUN}{Module function for entries into the sexually active population.}
+
+\item{departure.FUN}{Module function for general and disease-related departures.}
+
+\item{aging.FUN}{Module function for aging.}
+
+\item{initialize.FUN}{Module function to use for initialization of the epidemic model.}
+
+\item{infection.FUN}{Module function for disease transmission.}
+
+\item{recovery.FUN}{Module function for disease recovery.}
+
+\item{progress.FUN}{Module function for progress of the disease.}
+
+\item{prevalence.FUN}{Module function for calculating summary statistics}
+
+\item{resim_nets.FUN}{Module function for network resimulation at each time
+step.}
+
+\item{summary_nets.FUN}{Module function for network statistic extraction at
+each time step.}
+
+\item{tx.FUN}{Module function for treatment of the disease.}
+
+\item{verbose.FUN}{Module function to print model progress to the console or
+external text files.}
 
 \item{save.network}{If \code{TRUE}, networkLite object is saved at simulation end.}
 
@@ -101,25 +118,10 @@ data object to save out after each simulation.}
 if in interactive mode or text files if in batch mode.}
 
 \item{dat.updates}{See the general documentation for \code{dat.updates} at \code{\link[EpiModel:control.net]{EpiModel::control.net}}.
-The standard implementation for the current MSM model is found in
-\code{\link{standard_resimnet_updates}}.}
+The standard implementation for the current model is found in
+\code{\link{resimnet_updates_sti}}.}
 
 \item{...}{Additional arguments passed to the function.}
-
-\item{aging.FUN}{Module function for aging.}
-
-\item{departure.FUN}{Module function for general and disease-related departures.}
-
-\item{arrival.FUN}{Module function for entries into the sexually active population.}
-
-\item{partident.FUN}{Module function for partner identification process.}
-
-\item{acts.FUN}{Module function to simulate the number of sexual acts within
-partnerships.}
-
-\item{condoms.FUN}{Module function to simulate condom use within acts.}
-
-\item{prev.FUN}{Module function to calculate prevalence summary statistics.}
 }
 \value{
 A list object of class \code{control.net}, which can be passed to the EpiModel function \code{\link{netsim}}.

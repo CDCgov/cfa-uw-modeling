@@ -4,6 +4,7 @@
 \alias{targets}
 \alias{calc_joint_nodefactor}
 \alias{calc_single_attr_nodefactor}
+\alias{calc_nodematch}
 \alias{calc_edges}
 \alias{calc_absdiff}
 \alias{calc_concurrent}
@@ -16,6 +17,8 @@
 calc_joint_nodefactor(params, attrs, joint_attrs, joint_name, rel)
 
 calc_single_attr_nodefactor(params, attr_name, joint_attrs, nf_joint_counts)
+
+calc_nodematch(params, attr_name, attr_targets, rel)
 
 calc_edges(nf_joint_counts)
 
@@ -58,10 +61,14 @@ targets based on the two joint_attrs specifed}
 
 \item{nf_joint_counts}{output from calc_joint_nodefactor()}
 
+\item{attr_targets}{calculated from calc_single_attr_nodefactor()}
+
 \item{count_type}{string, which ERGM term to generate targets for. Currently can only be
 in the form "edges", "nodefactor", "nodematch", "absdiff_sqrt_age", or "concurrent".}
 
 \item{edges}{output from calc_edges()}
+
+\item{num}{the number of nodes in the network (population size)}
 
 \item{level}{additional statification for nodedov target calculation function}
 

@@ -7,5 +7,5 @@
 #' @export
 
 trackers_mgen <- function(dat, at) {
-  return(dat)
+  return(dat) # nolint
 }
