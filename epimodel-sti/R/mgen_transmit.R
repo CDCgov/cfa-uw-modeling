@@ -3,6 +3,7 @@
 #' @description Disease transmission
 #'
 #' @inheritParams initialize_mgen
+#' @importFrom EpiModel get_attr set_attr set_epi get_param set_transmat discord_edgelist
 #'
 #' @export
 
@@ -24,6 +25,8 @@ mgen_infection <- function(dat, at) {
   infProbFTM <- get_param(dat, "infProbFTM")
   act.rate <- get_param(dat, "act.rate")
 
+  inter.eff <- get_param(dat, "inter.eff")
+  inter.start <- get_param(dat, "inter.start")
 
   # Vector of infected and susceptible IDs
   idsInf <- which(active == 1 & status == "i")
@@ -84,7 +87,7 @@ mgen_infection <- function(dat, at) {
       del$finalProb <- 1 - (1 - del$transProb)^del$actRate
 
       # Randomize transmissions and subset df
-      transmit <- rbinom(nrow(del), 1, del$finalProb)
+      transmit <- stats::rbinom(nrow(del), 1, del$finalProb)
       del <- del[which(transmit == 1), ]
 
       # Set new infections vector

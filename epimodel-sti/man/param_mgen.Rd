@@ -17,6 +17,22 @@ param_mgen(
 )
 }
 \arguments{
+\item{act_rate_main}{Sexual act rate for main partnerships (per day).}
+
+\item{act_rate_casual}{Sexual act rate for casual partnerships (per day).}
+
+\item{act_rate_instant}{Sexual act rate for one-time partnerships (per day), usually 1.}
+
+\item{latent_period}{Latent period for the disease (in days).}
+
+\item{infectious_period}{Infectious period for the disease (in days).}
+
+\item{screening_rate_females}{Background rate for STI screening among females (per day).}
+
+\item{screening_rate_males}{Background rate for STI screening among males (per day).}
+
+\item{vital}{Logical indicating whether to include vital dynamics in the model.}
+
 \item{...}{Additional arguments passed to the function.}
 }
 \value{

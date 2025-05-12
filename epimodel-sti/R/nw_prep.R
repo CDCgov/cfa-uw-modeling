@@ -13,7 +13,8 @@
 #' @param assign_deg_casual default = FALSE, if TRUE, uses additional parameters information in "params" to set
 #' a plausible casual degree for each node (to help fit main/long-term partnership network,
 #' which is usually fit first in workflow)
-#'
+#' @importFrom rlang .data
+#' @importFrom stats rbinom rpois
 #' @return an object of class network
 #'
 #' @export
@@ -79,24 +80,29 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   age_adj[which(age_adj > 50)] <- 50
 
   # make older partner flag
-  olderpartner_probs <- dplyr::case_when(
-    age_group == 1 & female == 0 ~ params$pop$olderpartner_by_female_age_group[1],
-    age_group == 2 & female == 0 ~ params$pop$olderpartner_by_female_age_group[2],
-    age_group == 3 & female == 0 ~ params$pop$olderpartner_by_female_age_group[3],
-    age_group == 4 & female == 0 ~ params$pop$olderpartner_by_female_age_group[4],
-    age_group == 5 & female == 0 ~ params$pop$olderpartner_by_female_age_group[5],
-    age_group == 6 & female == 0 ~ params$pop$olderpartner_by_female_age_group[6],
-    age_group == 7 & female == 0 ~ params$pop$olderpartner_by_female_age_group[7],
-    age_group == 1 & female == 1 ~ params$pop$olderpartner_by_female_age_group[8],
-    age_group == 2 & female == 1 ~ params$pop$olderpartner_by_female_age_group[9],
-    age_group == 3 & female == 1 ~ params$pop$olderpartner_by_female_age_group[10],
-    age_group == 4 & female == 1 ~ params$pop$olderpartner_by_female_age_group[11],
-    age_group == 5 & female == 1 ~ params$pop$olderpartner_by_female_age_group[12],
-    age_group == 6 & female == 1 ~ params$pop$olderpartner_by_female_age_group[13],
-    age_group == 7 & female == 1 ~ params$pop$olderpartner_by_female_age_group[14],
-  )
+  op <- params$pop$olderpartner_by_female_age_group
+  olderpartner_probs <- tibble::tibble(
+    age_group = age_group, female = female
+  ) |>
+    dplyr::mutate(target = dplyr::case_when(
+      .data$age_group == 1 & .data$female == 0 ~ op[1],
+      .data$age_group == 2 & .data$female == 0 ~ op[2],
+      .data$age_group == 3 & .data$female == 0 ~ op[3],
+      .data$age_group == 4 & .data$female == 0 ~ op[4],
+      .data$age_group == 5 & .data$female == 0 ~ op[5],
+      .data$age_group == 6 & .data$female == 0 ~ op[6],
+      .data$age_group == 7 & .data$female == 0 ~ op[7],
+      .data$age_group == 1 & .data$female == 1 ~ op[8],
+      .data$age_group == 2 & .data$female == 1 ~ op[9],
+      .data$age_group == 3 & .data$female == 1 ~ op[10],
+      .data$age_group == 4 & .data$female == 1 ~ op[11],
+      .data$age_group == 5 & .data$female == 1 ~ op[12],
+      .data$age_group == 6 & .data$female == 1 ~ op[13],
+      .data$age_group == 7 & .data$female == 1 ~ op[14]
+    ))
 
-  olderpartner <- rbinom(num, 1, olderpartner_probs)
+
+  olderpartner <- rbinom(num, 1, olderpartner_probs$target)
 
   if (isTRUE(assign_deg_casual) && !is.null(params$casual)) {
     int_age_range <- params$pop$age$min:params$pop$age$max
@@ -160,6 +166,7 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 #' @param time_unit default = "weeks", the desired time unit for inst reporting conversion
 #' @param level additional statification for nodedov target calculation function
 #' @param attr_squared for nodecov target calculation, use squared version of attribute? (usually, age)
+#' @importFrom rlang .data
 #' @export
 #'
 
@@ -177,34 +184,37 @@ calc_targets <- function(nw, params, rel, count_type,
   joint_name <- paste0(joint_attrs[1], "_", joint_attrs[2])
 
   # calculate expected nodefactor targets
-  nf_joint_counts <- calc_joint_nodefactor(params, attrs, joint_attrs, joint_name, rel)
+  nf_joint_counts <- EpiModelSTI::calc_joint_nodefactor(params, attrs, joint_attrs, joint_name, rel)
 
   # calculate expected total edges based on sum of nodefactor
-  edges <- calc_edges(nf_joint_counts)
+  edges <- EpiModelSTI::calc_edges(nf_joint_counts)
 
   if (count_type == "edges") {
     final_targets <- edges
   }
 
   if (count_type == "nodecov") {
-    final_targets <- calc_nodecov_age(params, rel, attr_name, edges, level, joint_attrs, nf_joint_counts, attr_squared)
+    final_targets <- EpiModelSTI::calc_nodecov_age(
+      params, rel, attr_name, edges,
+      level, joint_attrs, nf_joint_counts, attr_squared
+    )
   }
 
   # if true, calc target for absdiff sqrt age
   if (count_type == "absdiff_sqrt_age") {
-    final_targets <- calc_absdiff(params, rel, count_type, edges)
+    final_targets <- EpiModelSTI::calc_absdiff(params, rel, count_type, edges)
   }
 
   if (count_type == "concurrent") {
     # calc number of people in rels
     # number of people with > 1 partners
-    final_targets <- calc_concurrent(params, rel, num)
+    final_targets <- EpiModelSTI::calc_concurrent(params, rel, num)
   }
 
   if (count_type == "cross_network") {
     # calc number of people in rels
     # number of people with > 1 partners
-    final_targets <- calc_cross_network(params, rel)
+    final_targets <- EpiModelSTI::calc_cross_network(params, rel)
   }
 
   # if true, calc nodefactor and then if true nodematch
@@ -213,7 +223,7 @@ calc_targets <- function(nw, params, rel, count_type,
       # targets for full joint distribution
       attr_targets <- as.numeric(nf_joint_counts)
     } else {
-      attr_targets <- calc_single_attr_nodefactor(params, attr_name, joint_attrs, nf_joint_counts)
+      attr_targets <- EpiModelSTI::calc_single_attr_nodefactor(params, attr_name, joint_attrs, nf_joint_counts)
     }
 
     # if nodefactor, leave targets as-is
@@ -222,17 +232,17 @@ calc_targets <- function(nw, params, rel, count_type,
     }
     # if nodematch, use nodefactor targets using nodefactor info
     if (count_type == "nodematch") {
-      final_targets <- calc_nodematch(params, attr_name, attr_targets, rel)
+      final_targets <- EpiModelSTI::calc_nodematch(params, attr_name, attr_targets, rel)
     }
   }
 
   # Check that these are reasonable targets
-  check_targets(edges, final_targets, count_type)
+  EpiModelSTI::check_targets(edges, final_targets, count_type)
 
   # Instantaneous Rel Correction
   ## correct for survey data reflecting number of one-times in last year
   if (rel == "inst" && isTRUE(inst_correct)) {
-    final_targets <- inst_correction(final_targets, time_unit)
+    final_targets <- EpiModelSTI::inst_correction(final_targets, time_unit)
   }
 
   # Output targets
@@ -245,6 +255,7 @@ calc_targets <- function(nw, params, rel, count_type,
 #'
 #' @param nw a network object, in this workflow, usually the network generated from "generate_init_network"
 #'
+#' @importFrom network list.vertex.attributes %v%
 #' @return A list of nodal attribute vectors
 #' @export
 #'
@@ -254,7 +265,7 @@ get_nw_attr_vecs <- function(nw) {
     stop("input must be a network object")
   }
 
-  n <- network::list.vertex.attributes(nw)
+  n <- list.vertex.attributes(nw)
 
   attrs <- list()
 
@@ -332,6 +343,7 @@ inst_correction <- function(targets, time_unit = NULL) {
 #'
 #' @inheritParams calc_targets
 #' @param joint_name Name of joint attribute as found in parameter input, calculated in calc_targets()
+#' @param num the number of nodes in the network (population size)
 #'
 #'
 #'
@@ -344,10 +356,11 @@ NULL
 #' @export
 calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # pop counts by joint attr dist
-  counts <- xtabs(~ attrs[[joint_attrs[1]]] + attrs[[joint_attrs[2]]])
+  counts <- stats::xtabs(~ attrs[[joint_attrs[1]]] + attrs[[joint_attrs[2]]])
 
   # shape joint nodefactor input probs into same shape as joint pop counts
-  nf_joint_probs <- matrix(params[[rel]][["nodefactor"]][[joint_name]],
+  nf_joint_probs <- matrix(
+    params[[rel]][["nodefactor"]][[joint_name]],
     nrow = nrow(counts), byrow = TRUE
   )
 
@@ -370,24 +383,26 @@ calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint
 
   # condense targets from age into age_group if requested
   if (attr_name == "age_group" && joint_attrs[1] == "age") {
-    attr_targets <- rowSums(nf_joint_counts)
+    age_attr_targets <- rowSums(nf_joint_counts)
     age_range <- ((params$pop$age$max + 1) - params$pop$age$min)
     grp_width <- age_range / length(params$pop$age_group$levels)
     ngrps <- age_range / grp_width
-    dat <- data.frame(
+
+    attr_targets <- tibble::tibble(
       grps = rep(1:ngrps, each = grp_width),
       tar = attr_targets
-    )
-    summed_targets <- dat |>
-      dplyr::group_by(grps) |>
-      dplyr::summarize(tars = sum(tar)) |>
-      as.data.frame()
-    attr_targets <- as.numeric(summed_targets[, "tars"])
+    ) |>
+      dplyr::group_by(.data$grps) |>
+      dplyr::summarize(tars = sum(.data$tar)) |>
+      dplyr::pull(.data$tars)
   }
 
   return(attr_targets) # nolint
 }
 
+#' @rdname targets
+#' @param attr_targets calculated from calc_single_attr_nodefactor()
+#' @export
 calc_nodematch <- function(params, attr_name, attr_targets, rel) {
   if (!attr_name %in% names(params[[rel]][["nodematch"]])) {
     stop("Attr name not available for nodematch statistic.")

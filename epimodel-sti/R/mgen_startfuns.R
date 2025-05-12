@@ -5,6 +5,15 @@
 #' @description Sets the epidemic parameters for stochastic network models
 #'              simulated with [`netsim`]
 #'
+#' @param act_rate_main Sexual act rate for main partnerships (per day).
+#' @param act_rate_casual Sexual act rate for casual partnerships (per day).
+#' @param act_rate_instant Sexual act rate for one-time partnerships (per day), usually 1.
+#' @param latent_period Latent period for the disease (in days).
+#' @param infectious_period Infectious period for the disease (in days).
+#' @param screening_rate_females Background rate for STI screening among females (per day).
+#' @param screening_rate_males Background rate for STI screening among males (per day).
+#' @param vital Logical indicating whether to include vital dynamics in the model.
+#'
 #' @param ... Additional arguments passed to the function.
 #'
 #' @return
@@ -24,7 +33,7 @@ param_mgen <- function(
     screening_rate_males = NA,
     vital = FALSE,
     ...) {
-  p <- get_args(
+  p <- EpiModel::get_args(
     formal.args = formals(sys.function()),
     dot.args = list(...)
   )
@@ -38,6 +47,8 @@ param_mgen <- function(
 #' @description Sets the initial conditions for a stochastic epidemic models
 #'              simulated with [`netsim`].
 #'
+#' @param ninfs Number of initial infections in the population.
+#' @param ... Additional arguments passed to the function.
 #' @return
 #' A list object of class `init.net`, which can be passed to EpiModel function [`netsim`].
 #'
@@ -45,7 +56,7 @@ param_mgen <- function(
 #'
 init_mgen <- function(ninfs = 5,
                       ...) {
-  p <- get_args(
+  p <- EpiModel::get_args(
     formal.args = formals(sys.function()),
     dot.args = list(...)
   )
@@ -75,19 +86,18 @@ init_mgen <- function(ninfs = 5,
 #' @param aging.FUN Module function for aging.
 #' @param departure.FUN Module function for general and disease-related departures.
 #' @param arrival.FUN Module function for entries into the sexually active population.
-#' @param partident.FUN Module function for partner identification process.
+#' @param infection.FUN Module function for disease transmission.
+#' @param recovery.FUN Module function for disease recovery.
+#' @param progress.FUN Module function for progress of the disease.
+#' @param tx.FUN Module function for treatment of the disease.
+#' @param amr.FUN Module function for antimicrobial resistance.
+#' @param prevalence.FUN Module function for calculating summary statistics
 #' @param resim_nets.FUN Module function for network resimulation at each time
 #'        step.
 #' @param summary_nets.FUN Module function for network statistic extraction at
 #'        each time step.
-#' @param acts.FUN Module function to simulate the number of sexual acts within
-#'        partnerships.
-#' @param condoms.FUN Module function to simulate condom use within acts.
-#' @param prev.FUN Module function to calculate prevalence summary statistics.
 #' @param verbose.FUN Module function to print model progress to the console or
 #'        external text files.
-#' @param cleanup.FUN Module function to tidy the `netsim_dat` object at the end
-#'        of each step.
 #' @param save.nwstats Calculate and save network statistics as defined in the
 #'        `simnet` modules.
 #' @param nwstats.formula Right-hand side formula for network statistics to
@@ -110,8 +120,8 @@ init_mgen <- function(ninfs = 5,
 #'        `simulate_formula.network`. Supports \code{\link{multilayer}}
 #'        specification.
 #' @param dat.updates See the general documentation for `dat.updates` at [`EpiModel::control.net`].
-#'        The standard implementation for the current MSM model is found in
-#'        [`standard_resimnet_updates`].
+#'        The standard implementation for the current model is found in
+#'        [`resimnet_updates_sti`].
 #' @param ... Additional arguments passed to the function.
 #'
 #' @return
@@ -131,28 +141,26 @@ control_mgen <- function(
     tergmLite = TRUE,
     truncate.el.cuml = 0,
     # modules
-    # amr.FUN = amr_mgen,
-    # initialize.FUN = initialize_mgen,
-    initialize.FUN = initialize.net,
-    # infection.FUN = transmit_mgen,
-    infection.FUN = infection.net,
-    recovery.FUN = recovery.net,
-    # progress.FUN = progress_mgen,
-    # prevalence.FUN = trackers_mgen,
-    prevalence.FUN = prevalence.net,
-    resim_nets.FUN = resim_nets,
-    # resim_nets.FUN = resim_nets_mgen
-    summary_nets.FUN = summary_nets,
-    # tx.FUN = tx_mgen,
-    verbose.FUN = verbose.net,
-    # cleanup.FUN = cleanup_msm,
+    amr.FUN = NULL,
+    arrival.FUN = NULL,
+    departure.FUN = NULL,
+    aging.FUN = NULL,
+    initialize.FUN = EpiModel::initialize.net,
+    infection.FUN = EpiModel::infection.net,
+    recovery.FUN = EpiModel::recovery.net,
+    progress.FUN = NULL,
+    prevalence.FUN = EpiModel::prevalence.net,
+    resim_nets.FUN = EpiModel::resim_nets,
+    summary_nets.FUN = EpiModel::summary_nets,
+    tx.FUN = NULL,
+    verbose.FUN = EpiModel::verbose.net,
     # end modules
     save.network = FALSE,
     tergmLite.track.duration = FALSE,
-    set.control.ergm = control.simulate.formula(
+    set.control.ergm = ergm::control.simulate.formula(
       MCMC.burnin = 2e5
     ),
-    set.control.tergm = control.simulate.formula.tergm(
+    set.control.tergm = tergm::control.simulate.formula.tergm(
       MCMC.burnin.min = 5000
     ),
     save.other = c("attr", "temp", "el", "net_attr"),
@@ -161,7 +169,7 @@ control_mgen <- function(
     ...) {
   formal.args <- formals(sys.function())
   dot.args <- list(...)
-  p <- get_args(formal.args, dot.args)
+  p <- EpiModel::get_args(formal.args, dot.args)
 
   p$skip.check <- TRUE
   p$save.transmat <- FALSE
@@ -181,7 +189,7 @@ control_mgen <- function(
   p$resimulate.network <- TRUE
   p$save.diss.stats <- FALSE
 
-  p <- set.control.class("control.net", p)
+  p <- statnet.common::set.control.class("control.net", p)
   return(p)
 }
 
@@ -191,12 +199,13 @@ control_mgen <- function(
 #' @description This function is updates the network-related degree attributes on the three-layer
 #' MSM sexual network that account for the resimulated network structure.
 #'
+#' @inheritParams initialize_mgen
 #' @param network Integer for network number (values 1, 2, or 3 for main, casual, and one-time
 #'                networks).
 #'
 #' @details
 #' This function is called between network resimulations in [`EpiModel::resim_nets`], passed into
-#' [`control_msm`] through the `dat.updates` argument. This implementation updates degree attributes
+#' [`EpiModel::control.net`] through the `dat.updates` argument. This implementation updates degree attributes
 #' calculated from the current network snapshot for use as ERGM terms in the other network layers
 #' (e.g., degree in the casual network is a function of the degree in the main network). See the
 #' general documentation for `dat.updates` at [`EpiModel::control.net`].
@@ -206,14 +215,14 @@ control_mgen <- function(
 #'
 resimnet_updates_sti <- function(dat, at, network) {
   if (network == 0L) {
-    dat <- set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
+    dat <- EpiModel::set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
   } else if (network == 1L) {
-    dat <- set_attr(dat, "deg_main", EpiModel::get_degree(dat$run$el[[1]]))
+    dat <- EpiModel::set_attr(dat, "deg_main", EpiModel::get_degree(dat$run$el[[1]]))
   } else if (network == 2L) {
-    dat <- set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
-    dat <- set_attr(
+    dat <- EpiModel::set_attr(dat, "deg_casual", EpiModel::get_degree(dat$run$el[[2]]))
+    dat <- EpiModel::set_attr(
       dat, "deg_tot",
-      get_attr(dat, "deg_main") + EpiModel::get_degree(dat$run$el[[2]])
+      EpiModel::get_attr(dat, "deg_main") + EpiModel::get_degree(dat$run$el[[2]])
     )
   }
   return(dat)

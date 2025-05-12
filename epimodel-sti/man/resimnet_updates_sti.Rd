@@ -7,6 +7,10 @@
 resimnet_updates_sti(dat, at, network)
 }
 \arguments{
+\item{dat}{simulation object}
+
+\item{at}{time step}
+
 \item{network}{Integer for network number (values 1, 2, or 3 for main, casual, and one-time
 networks).}
 }
@@ -16,7 +20,7 @@ MSM sexual network that account for the resimulated network structure.
 }
 \details{
 This function is called between network resimulations in \code{\link[EpiModel:resim_nets]{EpiModel::resim_nets}}, passed into
-\code{\link{control_msm}} through the \code{dat.updates} argument. This implementation updates degree attributes
+\code{\link[EpiModel:control.net]{EpiModel::control.net}} through the \code{dat.updates} argument. This implementation updates degree attributes
 calculated from the current network snapshot for use as ERGM terms in the other network layers
 (e.g., degree in the casual network is a function of the degree in the main network). See the
 general documentation for \code{dat.updates} at \code{\link[EpiModel:control.net]{EpiModel::control.net}}.

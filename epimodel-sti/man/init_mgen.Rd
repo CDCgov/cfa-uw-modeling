@@ -6,6 +6,11 @@
 \usage{
 init_mgen(ninfs = 5, ...)
 }
+\arguments{
+\item{ninfs}{Number of initial infections in the population.}
+
+\item{...}{Additional arguments passed to the function.}
+}
 \value{
 A list object of class \code{init.net}, which can be passed to EpiModel function \code{\link{netsim}}.
 }
