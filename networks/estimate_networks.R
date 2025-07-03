@@ -117,7 +117,7 @@ cas_targets <- unname(c(
 
 cas_offset <- c()
 
-cdurs <- c(x$casual$duration$duration[8], x$casual$duration$duration[c(1:3, 5:7)])
+cdurs <- c(x$casual$duration$duration$agegrp_match[8], x$casual$duration$duration$agegrp_match[c(1:3, 5:7)])
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges) + offset(nodematch(~age_group, diff = TRUE, levels = c(1:3, 5:7))),
   duration = cdurs,

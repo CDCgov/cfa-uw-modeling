@@ -390,7 +390,7 @@ calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint
 
     attr_targets <- tibble::tibble(
       grps = rep(1:ngrps, each = grp_width),
-      tar = attr_targets
+      tar = age_attr_targets
     ) |>
       dplyr::group_by(.data$grps) |>
       dplyr::summarize(tars = sum(.data$tar)) |>

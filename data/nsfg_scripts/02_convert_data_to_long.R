@@ -23,7 +23,7 @@ egos <- w |> dplyr::select(dplyr::all_of(ego_vars))
 
 # define alter variables in wide data
 alter_vars <- c(
-  "ego", "weight", "race", "age_group", "age", "female", # ego chars
+  "ego", "weight", "race", "age_group", "age", "female", "secu", "sest", # ego chars
   "once1", "rel1", "page1", "curr1", "partdur1", "prace1",
   "once2", "rel2", "page2", "curr2", "partdur2", "prace2",
   "once3", "rel3", "page3", "curr3", "partdur3", "prace3"

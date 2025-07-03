@@ -28,8 +28,8 @@ out$pop$race$dist <- c(0.12, 0.19, 0.11, 0.58) # based on 2020 census
 pop_agegroup <- data.frame(age_group = out$pop$age_group$levels, Freq = out$pop$age_group$dist * 144764299)
 pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * 144764299)
 
-wsvy <- srvyr::as_survey_design(w, weights = weight)
-lsvy <- srvyr::as_survey_design(l, weights = weight)
+wsvy <- srvyr::as_survey_design(w, ids = secu, strata = sest, weights = weight, nest = TRUE)
+lsvy <- srvyr::as_survey_design(l, ids = secu, strata = sest, weights = weight, nest = TRUE)
 
 wsvy <- survey::rake(wsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))
 lsvy <- survey::rake(lsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))

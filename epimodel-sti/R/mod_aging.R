@@ -84,6 +84,9 @@ mod_departures <- function(dat, at) {
 
   ## Summary statistics
   dat <- set_epi(dat, "d.flow", at, nDepts)
+  dat <- set_epi(dat, "edges_main", at, nrow(dat$run$el[[1]]))
+  dat <- set_epi(dat, "edges_casual", at, nrow(dat$run$el[[2]]))
+  dat <- set_epi(dat, "edges_inst", at, nrow(dat$run$el[[3]]))
 
   return(dat) # nolint
 }
