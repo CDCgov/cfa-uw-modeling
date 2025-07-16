@@ -18,7 +18,7 @@ calc_joint_nodefactor(params, attrs, joint_attrs, joint_name, rel)
 
 calc_single_attr_nodefactor(params, attr_name, joint_attrs, nf_joint_counts)
 
-calc_nodematch(params, attr_name, attr_targets, rel)
+calc_nodematch(params, attr_name, nf_targets, rel, diff)
 
 calc_edges(nf_joint_counts)
 
@@ -61,7 +61,9 @@ targets based on the two joint_attrs specifed}
 
 \item{nf_joint_counts}{output from calc_joint_nodefactor()}
 
-\item{attr_targets}{calculated from calc_single_attr_nodefactor()}
+\item{nf_targets}{calculated from calc_single_attr_nodefactor()}
+
+\item{diff}{default = FALSE, if TRUE, calculate nodematch targets among each group}
 
 \item{count_type}{string, which ERGM term to generate targets for. Currently can only be
 in the form "edges", "nodefactor", "nodematch", "absdiff_sqrt_age", or "concurrent".}
