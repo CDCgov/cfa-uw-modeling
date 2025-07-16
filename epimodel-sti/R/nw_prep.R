@@ -13,6 +13,12 @@
 #' @param assign_deg_casual default = FALSE, if TRUE, uses additional parameters information in "params" to set
 #' a plausible casual degree for each node (to help fit main/long-term partnership network,
 #' which is usually fit first in workflow)
+#' @param assign_deg_main default = FALSE, if TRUE, uses additional parameters information in "params" to set
+#' a plausible main degree for each node (to help fit casual partnership network,
+#' when casual network fit first in workflow)
+#' @param olderpartner default = FALSE, if TRUE, adds a flag to each node indicating whether a node has a partner
+#' that is outside the age range of the simulated population, used to prevent new relationships forming
+#' in the remaining nodes
 #' @importFrom rlang .data
 #' @importFrom stats rbinom rpois
 #' @return an object of class network
@@ -20,7 +26,12 @@
 #' @export
 #'
 
-generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE) {
+generate_init_network <- function(
+    params,
+    seed = NULL,
+    assign_deg_casual = FALSE,
+    assign_deg_main = FALSE,
+    olderpartner = FALSE) {
   if (is.null(seed)) {
     warning("No seed specified")
   } else {
@@ -36,13 +47,17 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
   # Generate empty network of desired population size
   nw <- network::network.initialize(num, directed = FALSE)
 
-  ## Create initial attribute vectors
+  # Set up list for recording attributes
+  attr_values <- list()
+
+  # Create initial attribute vectors
   ### sex variable
   # ensure that dist sums to 1
   if (sum(params$pop$female$dist) != 1) {
     stop("Distrution of sex attribute must sum to 1")
   }
   female <- rep(params$pop$female$levels, params$pop$female$dist * num)
+  attr_values$female <- female
 
   ### race variable
   race <- sample(EpiModel::apportion_lr(
@@ -51,12 +66,16 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
     params$pop$race$dist
   ))
 
+  attr_values$race <- race
+
   ### age variables
   age_group <- sample(EpiModel::apportion_lr(
     num,
     params$pop$age_group$levels,
     params$pop$age_group$dist
   ))
+
+  attr_values$age_group <- age_group
 
   # assign age based on age group
   age <- rep(NA, num)
@@ -73,43 +92,32 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
     indices <- which(age_group == i)
     age[indices] <- sample(ageopts, length(indices), replace = TRUE)
   }
-
-  # make adjusted age for female asymmetry in partnerships
-  age_adj <- age
-  age_adj[which(female == 1)] <- age[which(female == 1)] + params$pop$age$female_age_adj
-  age_adj[which(age_adj > 50)] <- 50
+  attr_values$age <- age
+  attr_values$agesq <- age^2
 
   # make older partner flag
-  op <- params$pop$olderpartner_by_female_age_group
-  olderpartner_probs <- tibble::tibble(
-    age_group = age_group, female = female
-  ) |>
-    dplyr::mutate(target = dplyr::case_when(
-      .data$age_group == 1 & .data$female == 0 ~ op[1],
-      .data$age_group == 2 & .data$female == 0 ~ op[2],
-      .data$age_group == 3 & .data$female == 0 ~ op[3],
-      .data$age_group == 4 & .data$female == 0 ~ op[4],
-      .data$age_group == 5 & .data$female == 0 ~ op[5],
-      .data$age_group == 6 & .data$female == 0 ~ op[6],
-      .data$age_group == 7 & .data$female == 0 ~ op[7],
-      .data$age_group == 1 & .data$female == 1 ~ op[8],
-      .data$age_group == 2 & .data$female == 1 ~ op[9],
-      .data$age_group == 3 & .data$female == 1 ~ op[10],
-      .data$age_group == 4 & .data$female == 1 ~ op[11],
-      .data$age_group == 5 & .data$female == 1 ~ op[12],
-      .data$age_group == 6 & .data$female == 1 ~ op[13],
-      .data$age_group == 7 & .data$female == 1 ~ op[14]
-    ))
-
-
-  olderpartner <- rbinom(num, 1, olderpartner_probs$target)
+  if (isTRUE(olderpartner)) {
+    op_dist <- tibble::tibble(
+      age = params$pop$age$min:params$pop$age$max,
+      prob = params$main$olderpartner
+    )
+    op_probs <- dplyr::left_join(
+      tibble::tibble(age = floor(age)),
+      op_dist,
+      by = "age"
+    )
+    olderpartner <- rbinom(num, 1, op_probs$prob)
+  } else {
+    olderpartner <- rep(0, num) # no older partner flag
+  }
+  attr_values$olderpartner <- olderpartner
 
   if (isTRUE(assign_deg_casual) && !is.null(params$casual)) {
     int_age_range <- params$pop$age$min:params$pop$age$max
     ## set obeserved casual degree from casual params by age & race
     ref <- data.frame(
-      age = rep(int_age_range, each = length(params$pop$race$levels)),
-      race = rep(params$pop$race$levels, times = length(int_age_range)),
+      age = rep(int_age_range, length(params$pop$race$levels)),
+      race = rep(params$pop$race$levels, each = length(int_age_range)),
       prob = params$casual$nodefactor$age_race
     )
 
@@ -118,27 +126,37 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
     popvec <- data.frame(comb = paste0(floor(age), race)) |>
       dplyr::left_join(ref, by = "comb")
 
-    deg_casual <- rpois(num, popvec$prob)
-
-    ## make attr lists
-    attr_names <- c("female", "race", "age_group", "deg_casual", "age", "age_adj", "agesq", "olderpartner")
-    attr_values <- list(female, race, age_group, deg_casual, age, age_adj, age^2, olderpartner)
+    deg_casual <- rbinom(num, 1, popvec$prob)
+    attr_values$deg_casual <- deg_casual
   }
+  if (isTRUE(assign_deg_main) && !is.null(params$main)) {
+    int_age_range <- params$pop$age$min:params$pop$age$max
+    ## set obeserved casual degree from casual params by age & race
+    ref <- data.frame(
+      age = rep(int_age_range, length(params$pop$race$levels)),
+      race = rep(params$pop$race$levels, each = length(int_age_range)),
+      prob = params$main$nodefactor$age_race
+    )
 
+    ref$comb <- paste0(ref$age, ref$race)
+
+    popvec <- data.frame(comb = paste0(floor(age), race)) |>
+      dplyr::left_join(ref, by = "comb")
+
+    deg_main <- rbinom(num, 1, popvec$prob)
+    attr_values$deg_main <- deg_main
+  }
   if (isTRUE(assign_deg_casual) && is.null(params$casual)) {
     warning("assign_deg_casual = TRUE, but there are no casual parameters in yaml.
       Not setting deg_casual in network attributes.")
-
-    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq", "olderpartner")
-    attr_values <- list(female, race, age_group, age, age_adj, age^2, olderpartner)
   }
-  if (!assign_deg_casual) {
-    attr_names <- c("female", "race", "age_group", "age", "age_adj", "agesq", "olderpartner")
-    attr_values <- list(female, race, age_group, age, age_adj, age^2, olderpartner)
+  if (isTRUE(assign_deg_main) && is.null(params$main)) {
+    warning("assign_deg_main = TRUE, but there are no main parameters in yaml.
+      Not setting deg_main in network attributes.")
   }
 
   # Set attributes on network
-  nw <- network::set.vertex.attribute(nw, attr_names, attr_values)
+  nw <- network::set.vertex.attribute(nw, names(attr_values), attr_values)
 }
 
 #' @title Calculate Network Target Statistics
@@ -161,6 +179,7 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 #' targets based on the two joint_attrs specifed
 #' @param joint_attrs string of length 2, the two attrs used to calculate joint distribution
 #' of estimates calculated from empirical data
+#' @param diff default = FALSE, if TRUE, calculate nodematch targets among each group
 #' @param inst_correct default = FALSE, if TRUE, adjust year-long cumulative reporting of
 #' one-time partnerships to daily or weekly counts
 #' @param time_unit default = "weeks", the desired time unit for inst reporting conversion
@@ -171,7 +190,7 @@ generate_init_network <- function(params, seed = NULL, assign_deg_casual = FALSE
 #'
 
 calc_targets <- function(nw, params, rel, count_type,
-                         attr_name = NULL, joint_attrs = c("age", "race"),
+                         attr_name = NULL, joint_attrs = c("age", "race"), diff = FALSE,
                          inst_correct = FALSE, level = NULL, attr_squared = FALSE, time_unit = "weeks") {
   # Test that conditions are met to calculate specified target -----------------
   check_conditions(nw, params, rel, count_type, attr_name, joint_attrs)
@@ -232,7 +251,7 @@ calc_targets <- function(nw, params, rel, count_type,
     }
     # if nodematch, use nodefactor targets using nodefactor info
     if (count_type == "nodematch") {
-      final_targets <- EpiModelSTI::calc_nodematch(params, attr_name, attr_targets, rel)
+      final_targets <- EpiModelSTI::calc_nodematch(params, attr_name, attr_targets, rel, diff)
     }
   }
 
@@ -361,7 +380,7 @@ calc_joint_nodefactor <- function(params, attrs, joint_attrs, joint_name, rel) {
   # shape joint nodefactor input probs into same shape as joint pop counts
   nf_joint_probs <- matrix(
     params[[rel]][["nodefactor"]][[joint_name]],
-    nrow = nrow(counts), byrow = TRUE
+    nrow = nrow(counts), byrow = FALSE
   )
 
   # calculate expected nodefactor targets
@@ -401,18 +420,22 @@ calc_single_attr_nodefactor <- function(params, attr_name, joint_attrs, nf_joint
 }
 
 #' @rdname targets
-#' @param attr_targets calculated from calc_single_attr_nodefactor()
+#' @param nf_targets calculated from calc_single_attr_nodefactor()
 #' @export
-calc_nodematch <- function(params, attr_name, attr_targets, rel) {
+calc_nodematch <- function(params, attr_name, nf_targets, rel, diff) {
   if (!attr_name %in% names(params[[rel]][["nodematch"]])) {
     stop("Attr name not available for nodematch statistic.")
   }
   attr_probs_nodematch <- params[[rel]][["nodematch"]][[attr_name]]
-  # further refine nodefactor targets to get nodematch
-  # how many edges of the estimated above activity are matching
-  final_targets <- attr_probs_nodematch * attr_targets / 2
-
-  return(final_targets) # nolint
+  if (diff) {
+    # further refine nodefactor targets to get nodematch
+    # how many edges of the estimated above activity are matching among each group
+    final_targets <- attr_probs_nodematch * nf_targets / 2
+  } else {
+    # if diff = FALSE, then use the same attr_probs_nodematch for all edges
+    final_targets <- attr_probs_nodematch * sum(nf_targets) / 2
+  }
+  final_targets
 }
 
 #' @rdname targets
