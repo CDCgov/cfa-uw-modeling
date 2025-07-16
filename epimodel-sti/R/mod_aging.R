@@ -11,9 +11,8 @@
 mod_aging <- function(dat, at) {
   # Calc Updated Age Attributes
   age <- get_attr(dat, "age")
-  age_adj <- get_attr(dat, "age_adj")
-  age <- age + 1 / 365
-  age_adj <- age_adj + 1 / 365
+  units <- get_param(dat, "units_per_year")
+  age <- age + (1 / units)
   age_group <- dplyr::case_when(
     age < 20 ~ 1,
     age >= 20 & age < 25 ~ 2,
@@ -26,13 +25,12 @@ mod_aging <- function(dat, at) {
 
   # Update Attributes
   dat <- set_attr(dat, "age", age)
-  dat <- set_attr(dat, "age_adj", age_adj)
   dat <- set_attr(dat, "agesq", age^2)
   dat <- set_attr(dat, "age_group", age_group)
 
   ## Summary statistics ##
   dat <- set_epi(dat, "meanAge", at, mean(age, na.rm = TRUE))
-  return(dat) # nolint
+  dat
 }
 
 # Departures Module ----------------------------------------------------
@@ -88,7 +86,7 @@ mod_departures <- function(dat, at) {
   dat <- set_epi(dat, "edges_casual", at, nrow(dat$run$el[[2]]))
   dat <- set_epi(dat, "edges_inst", at, nrow(dat$run$el[[3]]))
 
-  return(dat) # nolint
+  dat
 }
 
 
@@ -126,8 +124,6 @@ mod_arrivals <- function(dat, at) {
     ## Determine sex, race
     arrivalSex <- stats::rbinom(nArrivals, 1, femaleProb)
     arrivalRace <- apportion_lr(nArrivals, raceNames, raceProbs)
-    age_adj <- rep(entryAge, nArrivals)
-    age_adj[arrivalSex == 1] <- entryAge + femaleAgeAdj
 
     ## Update attributes
     dat <- append_core_attr(dat, at, nArrivals)
@@ -136,7 +132,6 @@ mod_arrivals <- function(dat, at) {
     dat <- append_attr(dat, "age", entryAge, nArrivals)
     dat <- append_attr(dat, "agesq", entryAge^2, nArrivals)
     dat <- append_attr(dat, "age_group", 1, nArrivals)
-    dat <- append_attr(dat, "age_adj", age_adj, nArrivals)
     dat <- append_attr(dat, "race", arrivalRace, nArrivals)
     dat <- append_attr(dat, "female", arrivalSex, nArrivals)
     dat <- append_attr(dat, "olderpartner", 0, nArrivals)
@@ -145,5 +140,5 @@ mod_arrivals <- function(dat, at) {
   ## Summary statistics
   dat <- set_epi(dat, "a.flow", at, nArrivals)
 
-  return(dat) # nolint
+  dat
 }
