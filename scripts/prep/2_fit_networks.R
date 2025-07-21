@@ -61,7 +61,7 @@ cas_offset <- c(-Inf)
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$casual$duration$overall,
-  d.rate = dept_rate
+  d.rate = 0 # few people aging out have casual rels, don't need to correct duration
 )
 
 cas_constraints <- ~
