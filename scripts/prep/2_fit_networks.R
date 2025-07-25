@@ -7,7 +7,7 @@ age_min <- 15
 age_max <- 50
 units_per_year <- 365
 drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # departure rate, aging out (no deaths)
-main_drate_adjustment <- 1.25 # increase adj b/c people aging out of sim are more lkely to be in a main rel
+main_drate_adjustment <- 1.25 # increase adj b/c people aging out of sim are more likely to be in a main rel
 casual_drate_adjustment <- 0 # very few people who age out of sim are in casual rels
 
 x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
