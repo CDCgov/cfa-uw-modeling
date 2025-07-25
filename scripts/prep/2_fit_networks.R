@@ -5,6 +5,7 @@ devtools::load_all("epimodel-sti")
 this_seed <- 11111
 dept_rate <- (1 / (50 - 15)) * (1 / 365)
 x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
+folder_name <- Sys.Date() # during development used Sys.Date() to avoid overwriting progress each day
 
 # Generate initial network ----------------------------------------
 ## generates empty network with nodal attributes reflecting pop specs
@@ -198,7 +199,7 @@ inst_netest <- EpiModel::netest(
 
 # Save out ----------------------------------------------------------
 est <- list(main_netest, cas_netest, inst_netest)
-if (!dir.exists(here::here("networks", "fits", Sys.Date()))) {
-  dir.create(here::here("networks", "fits", Sys.Date()), recursive = TRUE)
+if (!dir.exists(here::here("networks", "fits", folder_name))) {
+  dir.create(here::here("networks", "fits", folder_name), recursive = TRUE)
 }
-saveRDS(est, file = here::here("networks", "fits", Sys.Date(), "nw.rds"))
+saveRDS(est, file = here::here("networks", "fits", folder_name, "nw.rds"))

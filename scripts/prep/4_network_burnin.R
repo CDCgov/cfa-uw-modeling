@@ -4,7 +4,8 @@
 library(EpiModel)
 devtools::load_all("epimodel-sti")
 # load networks
-nets <- readRDS(here::here("networks", "fits", Sys.Date(), "nw.rds"))
+folder_name <- Sys.Date() # during development, used current date to no overwrite previous daily progress runs
+nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
 ncores <- parallel::detectCores() - 1L
 nsims <- ncores
@@ -59,6 +60,13 @@ sim <- netsim(nets, params, inits, controls)
 dur1 <- Sys.time() - t1
 sim$simdur <- dur1
 
+# Ensure the 'localtests' directory exists
+localtests_dir <- here::here("localtests")
+if (!dir.exists(localtests_dir)) {
+  dir.create(localtests_dir, recursive = TRUE)
+}
+
+# Save the simulation object to a file
 saveRDS(sim, file = here::here("localtests", "sim_30yrs.rds"))
 
 plot(sim, y = c("edges_main"), sim.lines = TRUE)

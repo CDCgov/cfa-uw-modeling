@@ -1,5 +1,6 @@
 library(EpiModel)
-nets <- readRDS(here::here("networks", "fits", Sys.Date(), "nw.rds"))
+folder_name <- Sys.Date() # during development, used current date to no overwrite previous daily progress runs
+nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
 # MCMC Diagnostics & GOF ---------------------------------------------------
 ## note: for some reason, the plots look worse when using SA than using MCMLE, but other metrics ok
