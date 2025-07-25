@@ -7,7 +7,7 @@ devtools::load_all("epimodel-sti")
 folder_name <- "latest"
 nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
-ncores <- parallel::detectCores() - 1L
+ncores <- max(1, parallel::detectCores() - 2L) # Reserve two cores by default
 nsims <- ncores
 nsteps <- 365 * 30
 
