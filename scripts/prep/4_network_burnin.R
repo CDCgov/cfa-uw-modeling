@@ -10,6 +10,7 @@ nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 ncores <- parallel::detectCores() - 1L
 nsims <- ncores
 nsteps <- 365 * 30
+
 # specify params & simulation controls
 params <- param.net(
   units_per_year = 365,
@@ -24,7 +25,6 @@ params <- param.net(
   entryRaceNames = c("B", "H", "O", "W"),
   entryRaceProbs = c(0.12, 0.19, 0.11, 0.58),
   entryFemaleProb = 0.5,
-  entryFemaleAgeAdj = 1.8331817
 )
 
 inits <- init.net(i.num = 0)

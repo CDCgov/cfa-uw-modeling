@@ -3,7 +3,13 @@ devtools::load_all("epimodel-sti")
 
 # Required objects --------------------------------------------
 this_seed <- 11111
-dept_rate <- (1 / (50 - 15)) * (1 / 365)
+age_min <- 15
+age_max <- 50
+units_per_year <- 365
+drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # departure rate, aging out (no deaths)
+main_drate_adjustment <- 1.25 # increase adj b/c people aging out of sim are more lkely to be in a main rel
+casual_drate_adjustment <- 0 # very few people who age out of sim are in casual rels
+
 x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
 folder_name <- "latest"
 
@@ -62,7 +68,7 @@ cas_offset <- c(-Inf)
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$casual$duration$overall,
-  d.rate = 0 # few people aging out have casual rels, don't need to correct duration
+  d.rate = drate * casual_drate_adjustment
 )
 
 cas_constraints <- ~
@@ -127,7 +133,7 @@ main_offset <- rep(-Inf, 2)
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$main$duration$overall,
-  d.rate = dept_rate * 1.25 # to account for more relationships among older people in main network
+  d.rate = drate * main_drate_adjustment
 )
 
 main_constraints <- ~
