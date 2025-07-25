@@ -72,28 +72,8 @@ saveRDS(sim, file = here::here("localtests", "sim_30yrs.rds"))
 plot(sim, y = c("edges_main"), sim.lines = TRUE)
 plot(sim, y = c("edges_casual"), sim.lines = TRUE)
 
-get_edge_stats <- function(sim, attrs = c("edges_main", "edges_casual")) {
-  # extract edges target for given network
-  target_main <- sim$nwparam[[1]]$target.stats[1]
-  target_casual <- sim$nwparam[[2]]$target.stats[1]
 
-  sim |>
-    as.data.frame() |>
-    dplyr::select(time, sim, dplyr::all_of(attrs)) |>
-    dplyr::mutate(
-      main_diff = edges_main - target_main,
-      casual_diff = edges_casual - target_casual,
-      main_diff_perc = (main_diff) / target_main * 100,
-      casual_diff_perc = (casual_diff) / target_casual * 100
-    ) |>
-    dplyr::group_by(time) |>
-    dplyr::mutate(
-      mean_main_diff_perc = mean(main_diff_perc, na.rm = TRUE),
-      mean_casual_diff_perc = mean(casual_diff_perc, na.rm = TRUE)
-    )
-}
-
-e <- get_edge_stats(sim)
+e <- get_edges_history(sim)
 
 e |>
   ggplot2::ggplot(ggplot2::aes(x = time, y = main_diff_perc, color = sim)) +
@@ -109,71 +89,9 @@ e |>
   ggplot2::geom_line(ggplot2::aes(y = mean_casual_diff_perc), color = "black", linewidth = 1) +
   ggplot2::labs(title = "Casual Network Edges Over Time")
 
-# frequency of rels by age in networks at end of simulation
-summarize_final_degrees <- function(sim) {
-  simdat <- NULL
-
-  for (i in seq_len(nsims)) {
-    this_sim <- paste0("sim", i)
-    d <- data.frame(
-      age = floor(sim[["network"]][[this_sim]][[1]] %v% "age"),
-      race = sim[["network"]][[this_sim]][[1]] %v% "race",
-      deg_main = get_degree(sim[["network"]][[this_sim]][[1]]),
-      deg_cas = get_degree(sim[["network"]][[this_sim]][[2]]),
-      sim = this_sim
-    )
-    simdat <- rbind(simdat, d)
-  }
-
-  sim_summary <- simdat |>
-    dplyr::group_by(sim, age, race) |>
-    dplyr::summarize( # calc mean degree by sim, age, race
-      main = mean(deg_main),
-      casual = mean(deg_cas),
-      .groups = "drop"
-    ) |>
-    tidyr::pivot_longer(
-      cols = c("main", "casual"),
-      names_to = "type",
-      values_to = "deg"
-    ) |>
-    dplyr::group_by(age, race, type) |>
-    dplyr::summarize( # mean and sd of mean degree across sims
-      degree = mean(deg),
-      IQR1 = quantile(deg, 1 / 4),
-      IQR3 = quantile(deg, 3 / 4),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(data = "simulated")
-}
-
-get_target_degrees <- function(target_yaml_file) {
-  x <- yaml::read_yaml(target_yaml_file)
-  dat <- data.frame(
-    main = x$main$nodefactor$age_race,
-    casual = x$casual$nodefactor$age_race,
-    age = rep(15:49, 4),
-    race = rep(c("B", "H", "O", "W"), each = 35)
-  )
-
-  dat |>
-    dplyr::group_by(age, race) |>
-    dplyr::summarize(
-      main = mean(main),
-      casual = mean(casual),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(data = "targets") |>
-    tidyr::pivot_longer(
-      cols = c("main", "casual"),
-      names_to = "type",
-      values_to = "degree"
-    )
-}
 s <- summarize_final_degrees(sim)
-t <- get_target_degrees(here::here("networks", "params", "nw_params.yaml"))
+t <- get_target_degrees_age_race(here::here("networks", "params", "nw_params.yaml"))
 
-# targets from yaml file
 
 s |>
   dplyr::filter(type == "main") |>
@@ -197,11 +115,6 @@ s |>
   ) +
   ggplot2::facet_wrap(~race)
 
-# mean rel durs at end (may not match targets if simulation is not long enough)
-m <- sim$network$sim1[[1]] %n% "lasttoggle"
-mdurs <- abs(m[, 3] - nsteps)
-summary(mdurs)
 
-c <- sim$network$sim4[[2]] %n% "lasttoggle"
-cdurs <- abs(c[, 3] - nsteps)
-summary(cdurs)
+
+get_mean_durations(sim)
