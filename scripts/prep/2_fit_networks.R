@@ -126,7 +126,7 @@ main_offset <- rep(-Inf, 2)
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$main$duration$overall,
-  d.rate = dept_rate * 1.25 # to account for more relationships among older people in main netwrok
+  d.rate = dept_rate * 1.25 # to account for more relationships among older people in main network
 )
 
 main_constraints <- ~

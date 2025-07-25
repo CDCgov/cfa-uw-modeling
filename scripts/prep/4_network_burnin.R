@@ -91,14 +91,14 @@ e |>
   ggplot2::ggplot(ggplot2::aes(x = time, y = main_diff_perc, color = sim)) +
   ggplot2::geom_line() +
   ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-  ggplot2::geom_line(ggplot2::aes(y = mean_main_diff_perc), color = "black", size = 1) +
+  ggplot2::geom_line(ggplot2::aes(y = mean_main_diff_perc), color = "black", linewidth = 1) +
   ggplot2::labs(title = "Main Network Edges Over Time")
 
 e |>
   ggplot2::ggplot(ggplot2::aes(x = time, y = casual_diff_perc, color = sim)) +
   ggplot2::geom_line() +
   ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-  ggplot2::geom_line(ggplot2::aes(y = mean_casual_diff_perc), color = "black", size = 1) +
+  ggplot2::geom_line(ggplot2::aes(y = mean_casual_diff_perc), color = "black", linewidth = 1) +
   ggplot2::labs(title = "Casual Network Edges Over Time")
 
 # frequency of rels by age in networks at end of simulation
@@ -174,7 +174,7 @@ s |>
   ggplot2::geom_errorbar(ggplot2::aes(ymin = IQR1, ymax = IQR3), width = 0.2) +
   ggplot2::geom_point(
     data = t |> dplyr::filter(type == "main"),
-    ggplot2::aes(x = age, y = degree, color = data), size = 3
+    ggplot2::aes(x = age, y = degree, color = data), linewidth = 3
   ) +
   ggplot2::facet_wrap(~race)
 
@@ -185,7 +185,7 @@ s |>
   ggplot2::geom_errorbar(ggplot2::aes(ymin = IQR1, ymax = IQR3), width = 0.2) +
   ggplot2::geom_point(
     data = t |> dplyr::filter(type == "casual"),
-    ggplot2::aes(x = age, y = degree, color = data), size = 3
+    ggplot2::aes(x = age, y = degree, color = data), linewidth = 3
   ) +
   ggplot2::facet_wrap(~race)
 
