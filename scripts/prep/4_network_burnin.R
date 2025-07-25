@@ -4,7 +4,7 @@
 library(EpiModel)
 devtools::load_all("epimodel-sti")
 # load networks
-folder_name <- Sys.Date() # during development, used current date to no overwrite previous daily progress runs
+folder_name <- "latest"
 nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
 ncores <- parallel::detectCores() - 1L
@@ -159,8 +159,8 @@ get_target_degrees <- function(target_yaml_file) {
   dat |>
     dplyr::group_by(age, race) |>
     dplyr::summarize(
-      main = mean(main, vartype = NULL),
-      casual = mean(casual, vartype = NULL),
+      main = mean(main),
+      casual = mean(casual),
       .groups = "drop"
     ) |>
     dplyr::mutate(data = "targets") |>

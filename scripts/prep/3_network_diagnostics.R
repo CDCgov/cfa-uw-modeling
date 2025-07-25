@@ -1,5 +1,5 @@
 library(EpiModel)
-folder_name <- Sys.Date() # during development, used current date to no overwrite previous daily progress runs
+folder_name <- "latest"
 nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
 # MCMC Diagnostics & GOF ---------------------------------------------------

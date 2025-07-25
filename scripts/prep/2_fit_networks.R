@@ -5,7 +5,7 @@ devtools::load_all("epimodel-sti")
 this_seed <- 11111
 dept_rate <- (1 / (50 - 15)) * (1 / 365)
 x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
-folder_name <- Sys.Date() # during development used Sys.Date() to avoid overwriting progress each day
+folder_name <- "latest"
 
 # Generate initial network ----------------------------------------
 ## generates empty network with nodal attributes reflecting pop specs
