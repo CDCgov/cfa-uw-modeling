@@ -18,8 +18,9 @@ out$pop$race$levels <- c("B", "H", "O", "W")
 out$pop$race$dist <- c(0.12, 0.19, 0.11, 0.58) # based on 2020 census
 
 # Rake surveys to population margins ---------------------------
-pop_agegroup <- data.frame(age_group = out$pop$age_group$levels, Freq = out$pop$age_group$dist * 144764299)
-pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * 144764299)
+us_pop <- 144764299 # from census
+pop_agegroup <- data.frame(age_group = out$pop$age_group$levels, Freq = out$pop$age_group$dist * us_pop)
+pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * us_pop)
 
 wsvy <- srvyr::as_survey_design(w, ids = secu, strata = sest, weights = weight, nest = TRUE)
 lsvy <- srvyr::as_survey_design(l, ids = secu, strata = sest, weights = weight, nest = TRUE)
