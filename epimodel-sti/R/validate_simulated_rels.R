@@ -7,10 +7,14 @@
 #' @param joint_attrs Character vector specifying the two joint attribute to extract targets for.
 #' Default is c("age", "race").
 #' @return A data frame where each cell represents the mean degree for that age, race, and network type.
+#' @importFrom yaml read_yaml
+#' @importFrom dplyr mutate group_by summarize
+#' @importFrom tidyr pivot_longer
+#' @importFrom rlang .data
 #' @export
 get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casual"), joint_attrs = c("age", "race")) {
   # load network targets from yaml file
-  x <- yaml::read_yaml(target_yaml_file)
+  x <- read_yaml(target_yaml_file)
 
   # Validate inputs, currently only supports main and casual networks, age and race joint attributes
   if (nets != c("main", "casual")) {
@@ -57,14 +61,14 @@ get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casu
 
   # Summarize mean degrees and reshape to long format
   dat |>
-    dplyr::group_by(age, race) |>
-    dplyr::summarize(
-      main = mean(main),
-      casual = mean(casual),
+    group_by(.data$age, .data$race) |>
+    summarize(
+      main = mean(.data$main),
+      casual = mean(.data$casual),
       .groups = "drop"
     ) |>
-    dplyr::mutate(data = "targets") |>
-    tidyr::pivot_longer(
+    mutate(data = "targets") |>
+    pivot_longer(
       cols = c("main", "casual"),
       names_to = "type",
       values_to = "degree"
@@ -81,6 +85,8 @@ get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casu
 #' @return A data frame with time, simulation identifier, edges for main and casual networks,
 #' the difference from target edges, and the percentage difference from target edges.
 #' @importFrom rlang .data
+#' @importFrom dplyr select rename_with mutate filter group_by ungroup all_of
+#' @importFrom tidyr pivot_longer
 #' @export
 get_edges_history <- function(sim, nets = c("main", "casual")) {
   edges <- paste0("edges_", nets)
@@ -98,20 +104,82 @@ get_edges_history <- function(sim, nets = c("main", "casual")) {
   # Extract edges history from simulation object
   sim |>
     as.data.frame() |>
-    dplyr::select(.data$time, .data$sim, dplyr::all_of(edges)) |>
-    dplyr::mutate(
-      main_diff = edges[1] - .data$target_main,
-      casual_diff = edges[2] - .data$target_casual,
-      main_diff_perc = (main_diff) / .data$target_main * 100,
-      casual_diff_perc = (casual_diff) / .data$target_casual * 100
+    select(.data$time, .data$sim, all_of(edges)) |>
+    rename_with(~ gsub("edges_", "", .), all_of(edges)) |>
+    pivot_longer(cols = all_of(nets), names_to = "net", values_to = "edges") |>
+    mutate(
+      target = ifelse(.data$net == "main", target_main, target_casual),
+      absolute = .data$edges - .data$target,
+      percent = (.data$absolute / .data$target) * 100
     ) |>
-    dplyr::group_by(time) |>
-    dplyr::mutate(
-      mean_main_diff_perc = mean(main_diff_perc, na.rm = TRUE),
-      mean_casual_diff_perc = mean(casual_diff_perc, na.rm = TRUE)
+    pivot_longer(
+      cols = c("absolute", "percent", "edges"),
+      names_to = "diff_type",
+      values_to = "diff"
+    ) |>
+    group_by(.data$time, .data$net, .data$diff_type) |>
+    mutate(mean = mean(.data$diff, na.rm = TRUE)) |>
+    ungroup() |>
+    mutate(target = ifelse(.data$diff_type == "edges", .data$target, 0))
+}
+
+#' @title Plot Edges History
+#' @description Plots the edges history for a specified network and type of difference (absolute, percent, or edges).
+#' @param edges_df A data frame containing the edges history,
+#' typically obtained from `get_edges_history()`.
+#' @param network A character string specifying the network type, either "main" or "casual".
+#' @param type A character string specifying the type of difference to plot, either "percent", "absolute", or "edges".
+#' @return A ggplot object showing the edges history over time for the specified network and type.
+#' @importFrom ggplot2 ggplot aes geom_line geom_hline labs
+#' @importFrom dplyr filter pull
+#' @importFrom rlang .data
+#' @export
+plot_edges_history <- function(x, network, type) {
+  if (!class(x) %in% c("netsim", "data.frame")) {
+    stop("x must be a netsim object or a data frame.")
+  }
+  if (!type %in% c("percent", "absolute", "edges")) {
+    stop("type must be one of 'percent', 'absolute', or 'edges'.")
+  }
+  if (!network %in% c("main", "casual")) {
+    stop("network must be either 'main', or 'casual'.")
+  }
+
+  if (class(x) == "netsim") {
+    edges_df <- get_edges_history(x, nets = network)
+  } else {
+    edges_df <- x
+  }
+
+  if (!all(c("time", "sim", "net", "target", "diff_type", "diff", "mean") %in% names(edges_df))) {
+    stop("edges_df must contain the columns: time, sim, net, target, diff_type, diff, and mean.")
+  }
+
+  target_val <- edges_df |>
+    filter(net == network, diff_type == type) |>
+    pull(target) |>
+    unique()
+
+  edges_df |>
+    filter(.data$net == network, .data$diff_type == type) |>
+    ggplot(aes(x = .data$time, y = .data$diff, color = .data$sim)) +
+    geom_line() +
+    geom_line(aes(y = .data$mean), color = "black", linewidth = 1) +
+    geom_hline(aes(yintercept = target_val)) +
+    labs(
+      title = paste("Edges history for ", network, " network (", type, ")", sep = ""),
+      y = paste(type, "difference"),
+      x = "time"
     )
 }
 
+#' @title Summarize Final Degrees from Simulation
+#' @description Summarizes the final degrees of individuals in the main and casual networks
+#' at the end of the simulation and calculates the mean degree for each age and race combination.
+#' @param sim A simulation object of class `EpiModel::netsim`.
+#' @return A data frame summarizing the mean degree, interquartile range (IQR), and data source
+#' for each age and race combination
+#' @export
 
 # frequency of rels by age in networks at end of simulation
 summarize_final_degrees <- function(sim) {

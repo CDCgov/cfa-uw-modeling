@@ -69,28 +69,16 @@ if (!dir.exists(localtests_dir)) {
 # Save the simulation object to a file
 saveRDS(sim, file = here::here("localtests", "sim_30yrs.rds"))
 
-plot(sim, y = c("edges_main"), sim.lines = TRUE)
-plot(sim, y = c("edges_casual"), sim.lines = TRUE)
+# Plotting and summarizing the simulation results
+## optional: first extract edge history df with get_edges_history(sim) to have as separate object
+plot_edges_history(sim, "main", "percent")
+plot_edges_history(sim, "casual", "percent")
 
-
-e <- get_edges_history(sim)
-
-e |>
-  ggplot2::ggplot(ggplot2::aes(x = time, y = main_diff_perc, color = sim)) +
-  ggplot2::geom_line() +
-  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-  ggplot2::geom_line(ggplot2::aes(y = mean_main_diff_perc), color = "black", linewidth = 1) +
-  ggplot2::labs(title = "Main Network Edges Over Time")
-
-e |>
-  ggplot2::ggplot(ggplot2::aes(x = time, y = casual_diff_perc, color = sim)) +
-  ggplot2::geom_line() +
-  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-  ggplot2::geom_line(ggplot2::aes(y = mean_casual_diff_perc), color = "black", linewidth = 1) +
-  ggplot2::labs(title = "Casual Network Edges Over Time")
-
+yaml_params_loc <- here::here("networks", "params", "nw_params.yaml")
+plot_final_degrees(sim, "main")
+plot_final_degrees(sim, "casual")
 s <- summarize_final_degrees(sim)
-t <- get_target_degrees_age_race(here::here("networks", "params", "nw_params.yaml"))
+t <- get_target_degrees_age_race(yaml_params_loc)
 
 
 s |>
