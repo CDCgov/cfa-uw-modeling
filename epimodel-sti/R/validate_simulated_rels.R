@@ -12,16 +12,16 @@
 #' @importFrom tidyr pivot_longer
 #' @importFrom rlang .data
 #' @export
-get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casual"), joint_attrs = c("age", "race")) {
+get_target_degrees_age_race <- function(yaml_params_loc, nets = c("main", "casual"), joint_attrs = c("age", "race")) {
   # load network targets from yaml file
-  x <- read_yaml(target_yaml_file)
+  x <- read_yaml(yaml_params_loc)
 
   # Validate inputs, currently only supports main and casual networks, age and race joint attributes
-  if (nets != c("main", "casual")) {
+  if (sum(nets == c("main", "casual")) != 2) {
     stop("Currently only 'main' and 'casual' networks are supported, in that order.")
   }
 
-  if (joint_attrs != c("age", "race")) {
+  if (sum(joint_attrs == c("age", "race")) != 2) {
     stop("Currently only race and race are supported as joint attributes, in that order.")
   }
 
@@ -32,9 +32,6 @@ get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casu
 
   if (length(joint_attrs) != 2) {
     stop("joint_attrs must be a character vector of length 2.")
-  }
-  if (!attr %in% names(x[[nets[1]]][["nodefactor"]])) {
-    stop("Specified attribute not found in the YAML file.")
   }
 
   joint_name <- paste0(joint_attrs[1], "_", joint_attrs[2])
@@ -54,7 +51,7 @@ get_target_degrees_age_race <- function(target_yaml_file, nets = c("main", "casu
 
   dat <- data.frame(
     main = x[[nets[1]]]$nodefactor[[joint_name]],
-    casual = x[[nets[1]]]$nodefactor[[joint_name]],
+    casual = x[[nets[2]]]$nodefactor[[joint_name]],
     age = rep(ages, (length(races))),
     race = rep(races, each = length(ages))
   )
@@ -184,6 +181,7 @@ plot_edges_history <- function(x, network, type) {
 # frequency of rels by age in networks at end of simulation
 summarize_final_degrees <- function(sim) {
   simdat <- NULL
+  nsims <- sim$control$nsims
 
   for (i in seq_len(nsims)) {
     this_sim <- paste0("sim", i)
@@ -219,8 +217,50 @@ summarize_final_degrees <- function(sim) {
     dplyr::mutate(data = "simulated")
 }
 
-# mean rel durs at end (may not match targets if simulation is not long enough)
-get_mean_durations <- function(sim) {
+#' @title Plot Final Degrees for Main and Casual Networks
+#' @description Plots the final degrees of individuals in the main and casual networks summarized across simulations
+#' and compares them to target degrees extracted from a YAML file.
+#' @param sim A simulation object of class `EpiModel::netsim`.
+#' @param network A character string specifying the network type, either "main" or "casual".
+#' @param yaml_params_loc Path to the YAML file containing target degrees.
+#' @return A ggplot object showing the final degrees for the specified network type,
+#' comparing simulated degrees to target degrees.
+#' @importFrom ggplot2 ggplot aes geom_point geom_errorbar facet_wrap
+#' @importFrom dplyr filter mutate
+#' @importFrom rlang .data
+#' @export
+plot_final_degrees <- function(sim, network, yaml_params_loc) {
+  if (!network %in% c("main", "casual")) {
+    stop("network must be either 'main' or 'casual'.")
+  }
+
+  s <- summarize_final_degrees(sim)
+  t <- get_target_degrees_age_race(yaml_params_loc) |>
+    dplyr::mutate(IQR1 = degree, IQR3 = degree) # targets do not have IQRs
+
+  y <- rbind(s, t)
+
+  y |>
+    dplyr::filter(.data$type == network) |>
+    ggplot2::ggplot(ggplot2::aes(x = .data$age, y = .data$degree, color = .data$data)) +
+    ggplot2::geom_point() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$IQR1, ymax = .data$IQR3), width = 0.2) +
+    ggplot2::facet_wrap(~ .data$race)
+}
+
+
+#' @title Get Mean Durations of Relationships at End of Simulation
+#' @description Calculates the mean durations of relationships in the main and casual networks at the end
+#' of the simulation, comparing them to target durations specified in a YAML file.
+#' @param sim A simulation object of class `EpiModel::netsim`.
+#' @param nets A character vector specifying the networks to calculate durations for, default is c("main", "casual").
+#' @param yaml_params_loc Path to the YAML file containing target durations.
+#' @return A data frame summarizing the target and simulated mean durations for each network,
+#' along with the standard deviation of the simulated durations.
+#' @importFrom yaml read_yaml
+#' @export
+get_mean_durations <- function(sim, nets = c("main", "casual"), yaml_params_loc) {
+  x <- read_yaml(yaml_params_loc)
   main_durs <- NULL
   casual_durs <- NULL
   nsims <- sim$control$nsims
@@ -238,8 +278,12 @@ get_mean_durations <- function(sim) {
   }
 
   data.frame(
-    type = c("main", "casual"),
-    mean_duration = c(mean(main_durs), mean(casual_durs)),
-    sd_duration = c(sd(main_durs), sd(casual_durs))
+    network = c("main", "casual"),
+    target = c(
+      x[[nets[1]]]$duration$overall,
+      x[[nets[2]]]$duration$overall
+    ),
+    sim_mean = c(mean(main_durs), mean(casual_durs)),
+    sim_sd = c(sd(main_durs), sd(casual_durs))
   )
 }

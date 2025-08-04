@@ -69,40 +69,15 @@ if (!dir.exists(localtests_dir)) {
 # Save the simulation object to a file
 saveRDS(sim, file = here::here("localtests", "sim_30yrs.rds"))
 
-# Plotting and summarizing the simulation results
-## optional: first extract edge history df with get_edges_history(sim) to have as separate object
+# Plotting and summarizing the simulation results (relationship stats)
 plot_edges_history(sim, "main", "percent")
 plot_edges_history(sim, "casual", "percent")
 
 yaml_params_loc <- here::here("networks", "params", "nw_params.yaml")
 plot_final_degrees(sim, "main")
 plot_final_degrees(sim, "casual")
-s <- summarize_final_degrees(sim)
-t <- get_target_degrees_age_race(yaml_params_loc)
 
+plot_final_degrees(sim, "main", yaml_params_loc)
+plot_final_degrees(sim, "casual", yaml_params_loc)
 
-s |>
-  dplyr::filter(type == "main") |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = degree, color = data)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_errorbar(ggplot2::aes(ymin = IQR1, ymax = IQR3), width = 0.2) +
-  ggplot2::geom_point(
-    data = t |> dplyr::filter(type == "main"),
-    ggplot2::aes(x = age, y = degree, color = data), linewidth = 3
-  ) +
-  ggplot2::facet_wrap(~race)
-
-s |>
-  dplyr::filter(type == "casual") |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = degree, color = data)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_errorbar(ggplot2::aes(ymin = IQR1, ymax = IQR3), width = 0.2) +
-  ggplot2::geom_point(
-    data = t |> dplyr::filter(type == "casual"),
-    ggplot2::aes(x = age, y = degree, color = data), linewidth = 3
-  ) +
-  ggplot2::facet_wrap(~race)
-
-
-
-get_mean_durations(sim)
+get_mean_durations(sim, yaml_params_loc = yaml_params_loc)
