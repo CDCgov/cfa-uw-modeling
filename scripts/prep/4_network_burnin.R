@@ -1,8 +1,7 @@
 # example simulation
 # does not use any project-specific modules yet
 
-library(EpiModel)
-devtools::load_all("epimodel-sti")
+library(epimodelcfa)
 # load networks
 folder_name <- "latest"
 nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
