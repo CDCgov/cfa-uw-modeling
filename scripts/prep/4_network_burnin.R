@@ -9,7 +9,8 @@ nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 
 ncores <- max(1, parallel::detectCores() - 2L) # Reserve two cores by default
 nsims <- ncores
-nsteps <- 365 * 30
+years <- 30
+nsteps <- 365 * years
 
 # specify params & simulation controls
 params <- param.net(
@@ -67,15 +68,15 @@ if (!dir.exists(localtests_dir)) {
 }
 
 # Save the simulation object to a file
-saveRDS(sim, file = here::here("localtests", "sim_30yrs.rds"))
+saveRDS(sim, file = here::here("localtests", paste0("sim_", years, "_years.rds")))
 
 # Plotting and summarizing the simulation results (relationship stats)
 plot_edges_history(sim, "main", "percent")
 plot_edges_history(sim, "casual", "percent")
 
 yaml_params_loc <- here::here("networks", "params", "nw_params.yaml")
-plot_final_degrees(sim, "main")
-plot_final_degrees(sim, "casual")
+plot_final_degrees(sim, "main", yaml_params_loc)
+plot_final_degrees(sim, "casual", yaml_params_loc)
 
 plot_final_degrees(sim, "main", yaml_params_loc)
 plot_final_degrees(sim, "casual", yaml_params_loc)
