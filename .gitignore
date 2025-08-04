@@ -4,6 +4,7 @@
 archive/
 data/surveys
 data/*.rds
+poetry.lock
 
 # Exceptions
 !networks/networks_files/*

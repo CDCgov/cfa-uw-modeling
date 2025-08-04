@@ -1,4 +1,5 @@
-library(EpiModel)
+library(epimodelcfa)
+
 folder_name <- "latest"
 nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
 

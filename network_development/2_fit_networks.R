@@ -1,5 +1,4 @@
-library(EpiModel)
-devtools::load_all("epimodel-sti")
+library(epimodelcfa)
 
 # Required objects --------------------------------------------
 this_seed <- 11111
