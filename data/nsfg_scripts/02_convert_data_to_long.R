@@ -4,7 +4,6 @@
 # and inst partners
 
 # nolint start
-
 source(here::here("data", "nsfg_scripts", "egodata_functions.R"))
 
 w <- readRDS(here::here("data", "nsfg_wide.rds"))
@@ -20,11 +19,11 @@ ego_vars <- c(
   "p_cond_month", "condom_use", "condom_use2"
 )
 
-egos <- w |> select(all_of(ego_vars))
+egos <- w |> dplyr::select(dplyr::all_of(ego_vars))
 
 # define alter variables in wide data
 alter_vars <- c(
-  "ego", "weight", "race", "age_group", "age", "female", # ego chars
+  "ego", "weight", "race", "age_group", "age", "female", "secu", "sest", # ego chars
   "once1", "rel1", "page1", "curr1", "partdur1", "prace1",
   "once2", "rel2", "page2", "curr2", "partdur2", "prace2",
   "once3", "rel3", "page3", "curr3", "partdur3", "prace3"
@@ -83,8 +82,17 @@ a3$alter_age[agemiss] <- predict(partner_age_glm, newdata = testdat, type = "res
 
 a4 <- a3 |>
   dplyr::mutate(alter_age = ifelse(alter_age == 50, 49.9, alter_age)) |>
-  dplyr::mutate(alter_age = ifelse(alter_age > 50, NA, alter_age)) |>
   dplyr::mutate(alter_age = ifelse(alter_age < 15, 15, alter_age)) |>
+  dplyr::mutate(olderpartner = ifelse(alter_age > 50, 1, 0)) |>
+  dplyr::mutate(alter_age_group = dplyr::case_when(
+    alter_age < 20 ~ 1,
+    alter_age >= 20 & alter_age < 25 ~ 2,
+    alter_age >= 25 & alter_age < 30 ~ 3,
+    alter_age >= 30 & alter_age < 35 ~ 4,
+    alter_age >= 35 & alter_age < 40 ~ 5,
+    alter_age >= 40 & alter_age < 45 ~ 6,
+    alter_age >= 45 ~ 7
+  )) |>
   dplyr::mutate( # race cat
     alter_race = ifelse(alter_race == 1, "H",
       ifelse(alter_race == 2, "W",
@@ -95,7 +103,7 @@ a4 <- a3 |>
     )
   )
 
-a4$alter_age_group <- cut(round(a4$alter_age), 7)
+dat_oldpartners <- a4 |> dplyr::filter(olderpartner == 1)
 
 a5 <- a4 |>
   dplyr::mutate(
@@ -117,10 +125,21 @@ a5 <- a4 |>
 
 
 # finally, remove any remaining rows with NA reponses in key variables
+# and remove any row with alter_age > 50
 a6 <- a5 |>
-  dplyr::filter(!is.na(alter_age), !is.na(rel2), !is.na(alter_race))
+  dplyr::filter(!is.na(alter_age), !is.na(rel2), !is.na(alter_race), alter_age < 50)
 
 # save out
 saveRDS(a6, here::here("data", "nsfg_long.rds"))
 
+# correct degree terms in wide data based on older partners, add older partner flag
+egos_main_olderpartner <- dat_oldpartners$ego[dat_oldpartners$rel2 == "Marriage/Cohab"]
+egos_cas_olderpartner <- dat_oldpartners$ego[dat_oldpartners$rel2 == "Casual/Other"]
+
+w$deg_main[w$ego %in% egos_main_olderpartner] <- 0
+w$deg_casual[w$ego %in% egos_cas_olderpartner] <- 0
+w$olderpartner <- 0
+w$olderpartner[w$ego %in% egos_main_olderpartner] <- 1 # we really only care about mains bc casual parts are short
+
+saveRDS(w, here::here("data", "nsfg_wide.rds"))
 # nolint end

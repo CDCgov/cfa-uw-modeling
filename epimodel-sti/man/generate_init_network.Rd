@@ -4,7 +4,13 @@
 \alias{generate_init_network}
 \title{Generate Starting Network for ERGM Estimation}
 \usage{
-generate_init_network(params, seed = NULL, assign_deg_casual = FALSE)
+generate_init_network(
+  params,
+  seed = NULL,
+  assign_deg_casual = FALSE,
+  assign_deg_main = FALSE,
+  olderpartner = FALSE
+)
 }
 \arguments{
 \item{params}{a list of parameters with a sublist called "pop" with the size of the network
@@ -16,6 +22,14 @@ every time function is called}
 \item{assign_deg_casual}{default = FALSE, if TRUE, uses additional parameters information in "params" to set
 a plausible casual degree for each node (to help fit main/long-term partnership network,
 which is usually fit first in workflow)}
+
+\item{assign_deg_main}{default = FALSE, if TRUE, uses additional parameters information in "params" to set
+a plausible main degree for each node (to help fit casual partnership network,
+when casual network fit first in workflow)}
+
+\item{olderpartner}{default = FALSE, if TRUE, adds a flag to each node indicating whether a node has a partner
+that is outside the age range of the simulated population, used to prevent new relationships forming
+in the remaining nodes}
 }
 \value{
 an object of class network

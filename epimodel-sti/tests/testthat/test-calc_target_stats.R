@@ -20,7 +20,10 @@ test_that("Calculate target stats", {
     joint_attrs = c("test", "test2")
   ))
   ## nm only avail for race
-  expect_error(calc_targets(nw = nw, params = params, rel = "main", count_type = "nodematch", attr_name = "age"))
+  expect_error(calc_targets(
+    nw = nw, params = params, rel = "main", count_type = "nodematch",
+    attr_name = "age", diff = TRUE
+  ))
 
   # currently need joint attrs dist for all count types
   expect_error(calc_targets(nw = nw, params = params, rel = "main", count_type = "edges", joint_attrs = NULL))
@@ -44,7 +47,10 @@ test_that("Calculate target stats", {
     expect_equal(length(nf_tar), length(nf_data))
     # nodematch (currently only available for race in main/casual nets)
     if (!rel %in% "inst") {
-      nm_tar <- calc_targets(nw = nw, params = params, rel = rel, count_type = "nodematch", attr_name = "race")
+      nm_tar <- calc_targets(
+        nw = nw, params = params, rel = rel, count_type = "nodematch",
+        attr_name = "race", diff = TRUE
+      )
       nm_data <- params[[rel]][["nodematch"]][["race"]]
       expect_equal(length(nm_tar), length(nm_data))
     }

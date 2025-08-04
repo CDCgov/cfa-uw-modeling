@@ -11,6 +11,7 @@ calc_targets(
   count_type,
   attr_name = NULL,
   joint_attrs = c("age", "race"),
+  diff = FALSE,
   inst_correct = FALSE,
   level = NULL,
   attr_squared = FALSE,
@@ -34,6 +35,8 @@ targets based on the two joint_attrs specifed}
 
 \item{joint_attrs}{string of length 2, the two attrs used to calculate joint distribution
 of estimates calculated from empirical data}
+
+\item{diff}{default = FALSE, if TRUE, calculate nodematch targets among each group}
 
 \item{inst_correct}{default = FALSE, if TRUE, adjust year-long cumulative reporting of
 one-time partnerships to daily or weekly counts}
