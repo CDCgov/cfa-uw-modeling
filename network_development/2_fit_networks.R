@@ -9,8 +9,11 @@ drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # departure rate, agin
 main_drate_adjustment <- 1.25 # increase adj b/c people aging out of sim are more likely to be in a main rel
 casual_drate_adjustment <- 0 # very few people who age out of sim are in casual rels
 
-x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
-folder_name <- "latest"
+x <- yaml::read_yaml(here::here("input", "params", "nw_params.yaml"))
+out_folder <- here::here("input", "network_fits", "latest")
+if (!dir.exists(out_folder)) {
+  dir.create(out_folder, recursive = TRUE)
+}
 
 # Generate initial network ----------------------------------------
 ## generates empty network with nodal attributes reflecting pop specs
@@ -34,7 +37,7 @@ ergm_controls <- control.ergm(
   SA.samplesize = 2048 * 10,
   main.method = "Stochastic-Approximation"
 )
-## Casual ----------------------------------------------------
+## Casual (fit first b/c more important than main) ----------------------------------
 ### Formation model
 cas_form <- ~ edges +
   nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
@@ -204,7 +207,4 @@ inst_netest <- EpiModel::netest(
 
 # Save out ----------------------------------------------------------
 est <- list(main_netest, cas_netest, inst_netest)
-if (!dir.exists(here::here("networks", "fits", folder_name))) {
-  dir.create(here::here("networks", "fits", folder_name), recursive = TRUE)
-}
-saveRDS(est, file = here::here("networks", "fits", folder_name, "nw.rds"))
+saveRDS(est, file = file.path(out_folder, "nw.rds"))
