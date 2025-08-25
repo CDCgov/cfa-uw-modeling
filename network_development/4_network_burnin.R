@@ -6,7 +6,7 @@ library(epimodelcfa)
 # load networks
 # adj b/c people aging out more likely to be in a main rel
 main_drate_adjustment <- 1.4
-drate_labels <- (main_drate_adjustment - 1) * 100 # labels for main_drate_adjustment for file saves
+drate_label <- (main_drate_adjustment - 1) * 100 # labels for main_drate_adjustment for file saves
 
 # Ensure the 'local_tests' directory exists
 local_tests_dir <- here::here("local_tests")
@@ -71,7 +71,7 @@ dur1 <- Sys.time() - t1
 sim$simdur <- dur1
 
 # Save the simulation object to a file
-sim_name <- paste0("sim_burnin_", drate_labels[i], ".rds")
+sim_name <- paste0("sim_burnin_", drate_label, ".rds")
 saveRDS(sim, file = file.path(local_tests_dir, sim_name))
 
 
@@ -88,7 +88,7 @@ p4 <- plot_final_degrees(sim, "casual", yaml_params_loc)
 
 # Save the plots to a PDF file, one per drate adjustment
 p <- list(p1, p2, p3, p4)
-pdf(file.path(local_tests_dir, paste0("sim_burnin_", drate_labels[i], ".pdf")), width = 10, height = 6)
+pdf(file.path(local_tests_dir, paste0("sim_burnin_", drate_label, ".pdf")), width = 10, height = 6)
 p
 dev.off()
 rm(sim, p)

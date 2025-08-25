@@ -152,7 +152,7 @@ main_constraints <- ~
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
   duration = x$main$duration$overall,
-  d.rate = drate * main_drate_adjustment[i]
+  d.rate = drate * main_drate_adjustment
 )
 ### Fit
 main_netest <- EpiModel::netest(
