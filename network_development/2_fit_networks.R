@@ -5,12 +5,16 @@ this_seed <- 11111
 age_min <- 15
 age_max <- 50
 units_per_year <- 365
-drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # departure rate, aging out (no deaths)
-main_drate_adjustment <- 1.25 # increase adj b/c people aging out of sim are more likely to be in a main rel
+drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # baseline departure rate, aging out (no deaths)
+# adj b/c people aging out more likely to be in a main rel
+main_drate_adjustment <- 1.40
 casual_drate_adjustment <- 0 # very few people who age out of sim are in casual rels
 
-x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
-folder_name <- "latest"
+x <- yaml::read_yaml(here::here("input", "params", "nw_params.yaml"))
+out_folder <- here::here("input", "network_fits", "latest")
+if (!dir.exists(out_folder)) {
+  dir.create(out_folder, recursive = TRUE)
+}
 
 # Generate initial network ----------------------------------------
 ## generates empty network with nodal attributes reflecting pop specs
@@ -34,7 +38,7 @@ ergm_controls <- control.ergm(
   SA.samplesize = 2048 * 10,
   main.method = "Stochastic-Approximation"
 )
-## Casual ----------------------------------------------------
+## Casual (fit first b/c more important than main) ----------------------------------
 ### Formation model
 cas_form <- ~ edges +
   nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
@@ -98,6 +102,7 @@ cas_netest <- EpiModel::netest(
 ### Set degree attributes -----------------------------------
 nw <- set.vertex.attribute(nw, "deg_casual", get_degree(cas_netest$newnetwork))
 
+
 ## Main ---------------------------------------------------------
 ### Formation model
 main_form <- ~ edges +
@@ -129,12 +134,6 @@ main_targets <- unname(c(
 ### Additional Arguments
 main_offset <- rep(-Inf, 2)
 
-main_diss <- dissolution_coefs(
-  dissolution = ~ offset(edges),
-  duration = x$main$duration$overall,
-  d.rate = drate * main_drate_adjustment
-)
-
 main_constraints <- ~
   bd(maxout = 1) +
     sparse +
@@ -150,6 +149,11 @@ main_constraints <- ~
       nrow = 4, ncol = 4
     ))
 
+main_diss <- dissolution_coefs(
+  dissolution = ~ offset(edges),
+  duration = x$main$duration$overall,
+  d.rate = drate * main_drate_adjustment
+)
 ### Fit
 main_netest <- EpiModel::netest(
   nw = nw,
@@ -204,7 +208,4 @@ inst_netest <- EpiModel::netest(
 
 # Save out ----------------------------------------------------------
 est <- list(main_netest, cas_netest, inst_netest)
-if (!dir.exists(here::here("networks", "fits", folder_name))) {
-  dir.create(here::here("networks", "fits", folder_name), recursive = TRUE)
-}
-saveRDS(est, file = here::here("networks", "fits", folder_name, "nw.rds"))
+saveRDS(est, file = file.path(out_folder, "nw.rds"))

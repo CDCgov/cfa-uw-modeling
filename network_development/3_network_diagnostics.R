@@ -1,7 +1,7 @@
 library(epimodelcfa)
-
 folder_name <- "latest"
-nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
+nets <- readRDS(here::here("input", "network_fits", folder_name, "nw.rds"))
+yaml_params_loc <- here::here("input", "params", "nw_params.yaml")
 
 # MCMC Diagnostics & GOF ---------------------------------------------------
 ## note: for some reason, the plots look worse when using SA than using MCMLE, but other metrics ok
@@ -23,8 +23,8 @@ g3 <- gof(nets[[3]]$fit, GOF = ~model)
 # Network Diagnostics via Simulation --------------------------------------------------------
 ## Shared Parameters
 
-ncores <- parallel::detectCores() - 1L
-nsims <- ncores
+ncores <- 10
+nsims <- 20
 nsteps <- 1000
 main_casual_ergm_control <- control.simulate.formula(MCMC.prop = ~sparse, MCMC.burnin = 2e+05)
 main_casual_tergm_control <- control.simulate.formula.tergm(MCMC.prop = ~ discord + sparse)
@@ -34,7 +34,8 @@ main_dynamic <- netdx(
   nets[[1]],
   dynamic = TRUE, nsims = nsims, nsteps = nsteps, ncores = ncores,
   set.control.ergm = main_casual_ergm_control,
-  set.control.tergm = main_casual_tergm_control
+  set.control.tergm = main_casual_tergm_control,
+  keep.tedgelist = TRUE
 )
 main_dynamic
 plot(main_dynamic)
@@ -44,7 +45,8 @@ cas_dynamic <- netdx(
   nets[[2]],
   dynamic = TRUE, nsims = nsims, nsteps = nsteps, ncores = ncores,
   set.control.ergm = main_casual_ergm_control,
-  set.control.tergm = main_casual_tergm_control
+  set.control.tergm = main_casual_tergm_control,
+  keep.tedgelist = TRUE
 )
 cas_dynamic
 plot(cas_dynamic)
@@ -53,53 +55,20 @@ plot(cas_dynamic)
 inst_static <- netdx(nets[[3]], dynamic = FALSE, nsims = 500)
 inst_static
 
-# Plot compare to empirical dists --------------------------------------------
+# Plot Degree Distributions --------------------------------------------
+## Note: Because the ERGM terms used as target statistics in the model fit do not discretely represent each
+## age and race degree combination, the degree distributions will not match the empirical distributions perfectly,
+## but should be similar in shape.
+##
+## Note 2: The networks within the netest and netdx objects are independent of each other, and the netdx
+## objects are simulated in a closed population. Thus, we will need to run a netsim simulation to see how
+## the degree distributions change over time when simulated with vital dynamics and changing nodal degree terms
+## that influence formation in other networks.
 
-## Target Parameters
-x <- yaml::read_yaml(here::here("networks", "params", "nw_params.yaml"))
-params <- data.frame(
-  main_targets = x$main$nodefactor$age_race,
-  casual_targets = x$casual$nodefactor$age_race,
-  age = rep(15:49, 4),
-  race = rep(c("B", "H", "O", "W"), each = length(15:49)),
-  names = paste0(rep(15:49, 4), rep(c("B", "H", "O", "W"), each = length(15:49)))
-)
+## Degree based on netest object fit
+plot_final_degrees(nets[[1]], "main", yaml_params_loc)
+plot_final_degrees(nets[[2]], "casual", yaml_params_loc)
 
-## Simulated Degrees extracted from network fits
-### get info from inst network ()
-dat <- data.frame(
-  age = floor(nets[[1]]$newnetwork %v% "age"),
-  age_group = nets[[1]]$newnetwork %v% "age_group",
-  race = nets[[1]]$newnetwork %v% "race",
-  d = get_degree(nets[[1]]$newnetwork),
-  c = get_degree(nets[[2]]$newnetwork)
-)
-
-## Combine and summarize
-comp <- dat |>
-  dplyr::group_by(age, race) |>
-  dplyr::summarize(
-    main_fit = mean(d),
-    casual_fit = mean(c)
-  ) |>
-  dplyr::left_join(params, by = c("age", "race")) |>
-  tidyr::pivot_longer(
-    cols = c("main_targets", "main_fit", "casual_targets", "casual_fit"),
-    names_to = c("type"), values_to = "vals"
-  )
-
-## Plot main
-comp |>
-  dplyr::filter(type %in% c("main_targets", "main_fit")) |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(span = 0.75) +
-  ggplot2::facet_wrap(~race)
-
-## Plot casual
-comp |>
-  dplyr::filter(type %in% c("casual_targets", "casual_fit")) |>
-  ggplot2::ggplot(ggplot2::aes(x = age, y = vals, col = type)) +
-  ggplot2::geom_point() +
-  ggplot2::geom_smooth(span = 0.75) +
-  ggplot2::facet_wrap(~race)
+## Degree based on netdx simulations
+plot_final_degrees(main_dynamic, "main", yaml_params_loc)
+plot_final_degrees(cas_dynamic, "casual", yaml_params_loc)

@@ -1,18 +1,28 @@
-# example simulation
-# does not use any project-specific modules yet
+# This script simulates a network with vital dynamics and interdependent networks.
+# No infection dynamics
+# Goal: evaluate where networks find equilibrium
 
 library(epimodelcfa)
 # load networks
-folder_name <- "latest"
-nets <- readRDS(here::here("networks", "fits", folder_name, "nw.rds"))
+# adj b/c people aging out more likely to be in a main rel
+main_drate_adjustment <- 1.4
+drate_label <- (main_drate_adjustment - 1) * 100 # labels for main_drate_adjustment for file saves
 
-ncores <- max(1, parallel::detectCores() - 2L) # Reserve two cores by default
+# Ensure the 'local_tests' directory exists
+local_tests_dir <- here::here("local_tests")
+if (!dir.exists(local_tests_dir)) {
+  dir.create(local_tests_dir, recursive = TRUE)
+}
+
+nets <- readRDS(here::here("input", "network_fits", "latest", "nw.rds"))
+
+ncores <- 20
 nsims <- ncores
-years <- 30
+years <- 25
 nsteps <- 365 * years
 
 # specify params & simulation controls
-params <- param.net(
+params <- EpiModel::param.net(
   units_per_year = 365,
   inf.prob = 0,
   rec.rate = 1 / 60,
@@ -27,24 +37,24 @@ params <- param.net(
   entryFemaleProb = 0.5,
 )
 
-inits <- init.net(i.num = 0)
+inits <- EpiModel::init.net(i.num = 0)
 
-controls <- control.net(
+controls <- EpiModel::control.net(
   nsims = nsims, nsteps = nsteps, ncores = nsims,
   verbose = FALSE,
   save.nwstats = FALSE,
   tergmLite = TRUE,
   resimulate.network = TRUE,
-  dat.updates = resimnet_updates_sti,
-  initialize.FUN = initialize.net,
-  resim_nets.FUN = resim_nets,
-  summary_nets.FUN = summary_nets,
-  departures.FUN = mod_departures,
-  arrivals.FUN = mod_arrivals,
-  nwupdate.FUN = nwupdate.net,
-  prevalence.FUN = prevalence.net,
-  aging.FUN = mod_aging,
-  verbose.FUN = verbose.net,
+  dat.updates = epimodelcfa::resimnet_updates_sti,
+  initialize.FUN = EpiModel::initialize.net,
+  resim_nets.FUN = EpiModel::resim_nets,
+  summary_nets.FUN = EpiModel::summary_nets,
+  departures.FUN = epimodelcfa::mod_departures,
+  arrivals.FUN = epimodelcfa::mod_arrivals,
+  nwupdate.FUN = EpiModel::nwupdate.net,
+  prevalence.FUN = EpiModel::prevalence.net,
+  aging.FUN = epimodelcfa::mod_aging,
+  verbose.FUN = EpiModel::verbose.net,
   epi.by = c("female"),
   tergmLite.track.duration = TRUE,
   save.run = TRUE,
@@ -60,24 +70,28 @@ sim <- netsim(nets, params, inits, controls)
 dur1 <- Sys.time() - t1
 sim$simdur <- dur1
 
-# Ensure the 'localtests' directory exists
-localtests_dir <- here::here("localtests")
-if (!dir.exists(localtests_dir)) {
-  dir.create(localtests_dir, recursive = TRUE)
-}
-
 # Save the simulation object to a file
-saveRDS(sim, file = here::here("localtests", paste0("sim_", years, "_years.rds")))
+sim_name <- paste0("sim_burnin_", drate_label, ".rds")
+saveRDS(sim, file = file.path(local_tests_dir, sim_name))
+
 
 # Plotting and summarizing the simulation results (relationship stats)
-plot_edges_history(sim, "main", "percent")
-plot_edges_history(sim, "casual", "percent")
+# Load the simulation object (unless continuing from above)
+sim <- readRDS(file.path(local_tests_dir, sim_name))
 
-yaml_params_loc <- here::here("networks", "params", "nw_params.yaml")
-plot_final_degrees(sim, "main", yaml_params_loc)
-plot_final_degrees(sim, "casual", yaml_params_loc)
+# Make plots
+p1 <- plot_edges_history(sim, "main", "percent")
+p2 <- plot_edges_history(sim, "casual", "percent")
+yaml_params_loc <- here::here("input", "params", "nw_params.yaml")
+p3 <- plot_final_degrees(sim, "main", yaml_params_loc)
+p4 <- plot_final_degrees(sim, "casual", yaml_params_loc)
 
-plot_final_degrees(sim, "main", yaml_params_loc)
-plot_final_degrees(sim, "casual", yaml_params_loc)
+# Save the plots to a PDF file, one per drate adjustment
+p <- list(p1, p2, p3, p4)
+pdf(file.path(local_tests_dir, paste0("sim_burnin_", drate_label, ".pdf")), width = 10, height = 6)
+p
+dev.off()
+rm(sim, p)
+
 
 get_mean_durations(sim, yaml_params_loc = yaml_params_loc)

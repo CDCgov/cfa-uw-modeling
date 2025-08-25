@@ -1,6 +1,15 @@
 # load data
-w <- readRDS(here::here("data", "nsfg_wide.rds"))
-l <- readRDS(here::here("data", "nsfg_long.rds"))
+# location of survey data
+input_folder <- file.path(here::here("input", "nsfg"))
+
+w <- readRDS(file.path(input_folder, "nsfg_wide.rds"))
+l <- readRDS(file.path(input_folder, "nsfg_long.rds"))
+
+# destination folder for parameter yaml
+param_folder <- here::here("input", "params")
+if (!dir.exists(param_folder)) {
+  dir.create(param_folder, recursive = TRUE)
+}
 
 # Set population parameters ---------------------------
 out <- list()
@@ -212,9 +221,8 @@ casrels <- totrels[5:8, ]
 mainprops <- mainrels / sum(mainrels)
 casprops <- casrels / sum(casrels)
 
-devtools::load_all("epimodel-sti")
-main_race_mixmat <- matrix_symmetrical(mainprops)
-casual_race_mixmat <- matrix_symmetrical(casprops)
+main_race_mixmat <- epimodelcfa::matrix_symmetrical(mainprops)
+casual_race_mixmat <- epimodelcfa::matrix_symmetrical(casprops)
 
 out$main$mixmat$race <- main_race_mixmat
 out$casual$mixmat$race <- casual_race_mixmat
@@ -259,5 +267,5 @@ out$casual$mixmat$age_group <- casual_ag_mixmat
 
 
 # save out as yaml
-params_name <- paste0("nw_params.yaml")
-yaml::write_yaml(out, here::here("networks", "params", params_name))
+params_name <- "nw_params.yaml"
+yaml::write_yaml(out, file.path(param_folder, params_name))
