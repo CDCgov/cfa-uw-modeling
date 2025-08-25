@@ -222,7 +222,7 @@ mainprops <- mainrels / sum(mainrels)
 casprops <- casrels / sum(casrels)
 
 main_race_mixmat <- epimodelcfa::matrix_symmetrical(mainprops)
-casual_race_mixmat <-  epimodelcfa::matrix_symmetrical(casprops)
+casual_race_mixmat <- epimodelcfa::matrix_symmetrical(casprops)
 
 out$main$mixmat$race <- main_race_mixmat
 out$casual$mixmat$race <- casual_race_mixmat
