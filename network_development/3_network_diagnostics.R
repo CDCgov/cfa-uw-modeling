@@ -1,5 +1,4 @@
 library(epimodelcfa)
-devtools::load_all("~/repos/cfa-epimodel")
 folder_name <- "latest"
 nets <- readRDS(here::here("input", "network_fits", folder_name, "nw.rds"))
 yaml_params_loc <- here::here("input", "params", "nw_params.yaml")
@@ -24,8 +23,8 @@ g3 <- gof(nets[[3]]$fit, GOF = ~model)
 # Network Diagnostics via Simulation --------------------------------------------------------
 ## Shared Parameters
 
-ncores <- 5 #parallel::detectCores() - 2L
-nsims <- ncores
+ncores <- 10
+nsims <- 20
 nsteps <- 1000
 main_casual_ergm_control <- control.simulate.formula(MCMC.prop = ~sparse, MCMC.burnin = 2e+05)
 main_casual_tergm_control <- control.simulate.formula.tergm(MCMC.prop = ~ discord + sparse)

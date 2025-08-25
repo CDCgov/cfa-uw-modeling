@@ -2,9 +2,9 @@
 
 # Specific to this repo
 archive/
-local_tests/
-input/
-output/
+local*/
+input/*
+output/*
 poetry.lock
 .vscode/
 
