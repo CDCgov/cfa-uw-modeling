@@ -40,7 +40,9 @@ params <- EpiModel::param.net(
 inits <- EpiModel::init.net(i.num = 0)
 
 controls <- EpiModel::control.net(
-  nsims = nsims, nsteps = nsteps, ncores = nsims,
+  nsims = nsims,
+  nsteps = nsteps,
+  ncores = nsims,
   verbose = FALSE,
   save.nwstats = FALSE,
   tergmLite = TRUE,
@@ -88,7 +90,11 @@ p4 <- plot_final_degrees(sim, "casual", yaml_params_loc)
 
 # Save the plots to a PDF file, one per drate adjustment
 p <- list(p1, p2, p3, p4)
-pdf(file.path(local_tests_dir, paste0("sim_burnin_", drate_label, ".pdf")), width = 10, height = 6)
+pdf(
+  file.path(local_tests_dir, paste0("sim_burnin_", drate_label, ".pdf")),
+  width = 10,
+  height = 6
+)
 p
 dev.off()
 rm(sim, p)

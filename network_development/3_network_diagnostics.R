@@ -26,13 +26,21 @@ g3 <- gof(nets[[3]]$fit, GOF = ~model)
 ncores <- 10
 nsims <- 20
 nsteps <- 1000
-main_casual_ergm_control <- control.simulate.formula(MCMC.prop = ~sparse, MCMC.burnin = 2e+05)
-main_casual_tergm_control <- control.simulate.formula.tergm(MCMC.prop = ~ discord + sparse)
+main_casual_ergm_control <- control.simulate.formula(
+  MCMC.prop = ~sparse,
+  MCMC.burnin = 2e+05
+)
+main_casual_tergm_control <- control.simulate.formula.tergm(
+  MCMC.prop = ~ discord + sparse
+)
 
 ## Main network diagnostics
 main_dynamic <- netdx(
   nets[[1]],
-  dynamic = TRUE, nsims = nsims, nsteps = nsteps, ncores = ncores,
+  dynamic = TRUE,
+  nsims = nsims,
+  nsteps = nsteps,
+  ncores = ncores,
   set.control.ergm = main_casual_ergm_control,
   set.control.tergm = main_casual_tergm_control,
   keep.tedgelist = TRUE
@@ -43,7 +51,10 @@ plot(main_dynamic)
 ## Casual network diagnostics
 cas_dynamic <- netdx(
   nets[[2]],
-  dynamic = TRUE, nsims = nsims, nsteps = nsteps, ncores = ncores,
+  dynamic = TRUE,
+  nsims = nsims,
+  nsteps = nsteps,
+  ncores = ncores,
   set.control.ergm = main_casual_ergm_control,
   set.control.tergm = main_casual_tergm_control,
   keep.tedgelist = TRUE

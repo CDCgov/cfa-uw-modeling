@@ -25,7 +25,8 @@ constraints <-
 # 1. Main Model -----------------------------------------------------------
 
 # Formulas
-fit_m <- netest(nw,
+fit_m <- netest(
+  nw,
   formation = ~edges,
   target.stats = main_tar[1],
   coef.diss = dissolution_coefs(
@@ -45,7 +46,8 @@ nw_pers <- nw
 nw_pers %v% "deg.main" <- get_degree(fit_m$newnetwork) # nolint
 
 # Fit model
-fit_p <- netest(nw_pers,
+fit_p <- netest(
+  nw_pers,
   formation = ~edges,
   target.stats = casual_tar[1],
   coef.diss = dissolution_coefs(
@@ -65,7 +67,8 @@ nw_inst <- nw_pers
 nw_inst %v% "deg.pers" <- get_degree(fit_p$newnetwork) # nolint
 
 # Fit model
-fit_i <- netest(nw_inst,
+fit_i <- netest(
+  nw_inst,
   formation = ~edges,
   target.stats = once_tar[1],
   coef.diss = dissolution_coefs(~ offset(edges), 1),

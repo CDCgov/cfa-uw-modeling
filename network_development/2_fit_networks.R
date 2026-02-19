@@ -52,9 +52,23 @@ cas_edges <- calc_targets(nw, x, "casual", "edges")
 cas_nf_agegp <- calc_targets(nw, x, "casual", "nodefactor", "age_group")
 cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
 cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race", diff = TRUE)
-cas_nm_ag <- calc_targets(nw, x, "casual", "nodematch", "age_group", diff = TRUE)
+cas_nm_ag <- calc_targets(
+  nw,
+  x,
+  "casual",
+  "nodematch",
+  "age_group",
+  diff = TRUE
+)
 cas_nc_age <- calc_targets(nw, x, "casual", "nodecov", "age")
-cas_nc_agesq <- calc_targets(nw, x, "casual", "nodecov", "age", attr_squared = TRUE)
+cas_nc_agesq <- calc_targets(
+  nw,
+  x,
+  "casual",
+  "nodecov",
+  "age",
+  attr_squared = TRUE
+)
 cas_conc <- calc_targets(nw, x, "casual", "concurrent")
 
 cas_targets <- unname(c(
@@ -74,19 +88,35 @@ cas_diss <- dissolution_coefs(
   d.rate = drate * casual_drate_adjustment
 )
 
-cas_constraints <- ~
-  sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = matrix( # should be same as x$casual$mixmat$race
+cas_constraints <- ~ sparse +
+  blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
+  strat(
+    attr = ~race,
+    pmat = matrix(
+      # should be same as x$casual$mixmat$race
       c(
-        0.1354340, 0.0435742, 0.0055867, 0.0050679,
-        0.0435742, 0.0970881, 0.0294654, 0.0386104,
-        0.0055867, 0.0294654, 0.0187281, 0.0441261,
-        0.0050679, 0.0386104, 0.0441261, 0.4158885
+        0.1354340,
+        0.0435742,
+        0.0055867,
+        0.0050679,
+        0.0435742,
+        0.0970881,
+        0.0294654,
+        0.0386104,
+        0.0055867,
+        0.0294654,
+        0.0187281,
+        0.0441261,
+        0.0050679,
+        0.0386104,
+        0.0441261,
+        0.4158885
       ),
       byrow = TRUE,
-      nrow = 4, ncol = 4
-    ))
+      nrow = 4,
+      ncol = 4
+    )
+  )
 
 ### Fit
 cas_netest <- EpiModel::netest(
@@ -119,7 +149,14 @@ main_edges <- calc_targets(nw, x, "main", "edges")
 main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race", diff = TRUE)
 main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
 main_nc_age <- calc_targets(nw, x, "main", "nodecov", "age")
-main_nc_agesq <- calc_targets(nw, x, "main", "nodecov", "age", attr_squared = TRUE)
+main_nc_agesq <- calc_targets(
+  nw,
+  x,
+  "main",
+  "nodecov",
+  "age",
+  attr_squared = TRUE
+)
 main_agemix <- calc_targets(nw, x, "main", "absdiff_sqrt_age")
 
 main_targets <- unname(c(
@@ -134,20 +171,36 @@ main_targets <- unname(c(
 ### Additional Arguments
 main_offset <- rep(-Inf, 2)
 
-main_constraints <- ~
-  bd(maxout = 1) +
-    sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = matrix( # should be same as x$main$mixmat$race
+main_constraints <- ~ bd(maxout = 1) +
+  sparse +
+  blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
+  strat(
+    attr = ~race,
+    pmat = matrix(
+      # should be same as x$main$mixmat$race
       c(
-        0.057178141, 0.02842713, 0.00417141, 0.003909043,
-        0.028427131, 0.08849135, 0.02961956, 0.039865982,
-        0.004171410, 0.02961956, 0.02019247, 0.049425911,
-        0.003909043, 0.03986598, 0.04942591, 0.523299963
+        0.057178141,
+        0.02842713,
+        0.00417141,
+        0.003909043,
+        0.028427131,
+        0.08849135,
+        0.02961956,
+        0.039865982,
+        0.004171410,
+        0.02961956,
+        0.02019247,
+        0.049425911,
+        0.003909043,
+        0.03986598,
+        0.04942591,
+        0.523299963
       ),
       byrow = TRUE,
-      nrow = 4, ncol = 4
-    ))
+      nrow = 4,
+      ncol = 4
+    )
+  )
 
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges),
@@ -176,12 +229,40 @@ inst_form <- ~ edges +
   absdiff(~ sqrt(age))
 
 ### Calc and Compile Targets
-inst_edges <- calc_targets(nw, x, "inst", "edges", inst_correct = TRUE, time_unit = "days")
-inst_nf_race <- calc_targets(nw, x, "inst", "nodefactor", "race", inst_correct = TRUE, time_unit = "days")
-inst_nf_agegrp <- calc_targets(nw, x, "inst", "nodefactor", "age_group",
-  inst_correct = TRUE, time_unit = "days"
+inst_edges <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "edges",
+  inst_correct = TRUE,
+  time_unit = "days"
 )
-inst_agemix <- calc_targets(nw, x, "inst", "absdiff_sqrt_age", inst_correct = TRUE, time_unit = "days")
+inst_nf_race <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "nodefactor",
+  "race",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
+inst_nf_agegrp <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "nodefactor",
+  "age_group",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
+inst_agemix <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "absdiff_sqrt_age",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
 
 inst_targets <- unname(c(
   inst_edges,
@@ -192,7 +273,11 @@ inst_targets <- unname(c(
 
 ### Additional Arguments
 inst_offset <- c() # no offsets for inst network in formation model
-inst_diss <- dissolution_coefs(dissolution = ~ offset(edges), duration = 1, d.rate = 0)
+inst_diss <- dissolution_coefs(
+  dissolution = ~ offset(edges),
+  duration = 1,
+  d.rate = 0
+)
 inst_constraints <- ~ sparse + blocks(attr = ~female, levels2 = diag(TRUE, 2))
 
 ### Fit
