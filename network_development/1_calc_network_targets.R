@@ -365,8 +365,8 @@ c_predicted <- predict(
   type = "response"
 )
 
-out$main$cross <- as.numeric(m_predicted)
-out$casual$cross <- as.numeric(c_predicted)
+out$main$cross_network <- as.numeric(m_predicted)
+out$casual$cross_network <- as.numeric(c_predicted)
 
 # -----------------------------------------------------------------
 # Absdiff Age ----------------------------------------------
@@ -381,8 +381,6 @@ mod <- survey::svyglm(
 )
 pred <- exp(coef(mod)[[1]])
 out$main$absdiff_sqrt_age <- pred
-
-
 ## Absdiff (mean abs val in sqrt of age between partners)
 mod <- survey::svyglm(
   absdiff_sqrt_age ~ 1,
@@ -416,37 +414,34 @@ out$casual$duration$overall <- dur * (365 / 12)
 out$casual$duration$metric <- "days"
 
 ## by age group
+## to match formation model we need a vector with
+## first entry: median of all unmatched rels and matched rels of ag7
+## median estimates for matched rels in ags 1-6
+
+lsvy <- lsvy |>
+  dplyr::mutate(
+    ag_cat = ifelse(
+      age_group < 7 & agegrp_match,
+      as.character(age_group),
+      "0"
+    )
+  )
+
 durs <- lsvy |>
-  dplyr::group_by(rel2, age_group, agegrp_match) |>
+  dplyr::group_by(rel2, ag_cat) |>
   dplyr::summarize(dur = srvyr::survey_median(partdur, na.rm = TRUE))
 
 m_durs_age_group <- durs |>
-  filter(rel2 == "Marriage/Cohab", agegrp_match) |>
+  filter(rel2 == "Marriage/Cohab") |>
   pull(dur)
 
-m_durs_age_group_not_matched <- durs |>
-  filter(rel2 == "Marriage/Cohab", !agegrp_match) |>
-  ungroup() |>
-  summarize(dur = median(dur)) |>
-  pull(dur)
-
-mdurs <- c(m_durs_age_group, m_durs_age_group_not_matched)
-
-out$main$duration$by_age_group <- mdurs * (365 / 12)
+out$main$duration$by_age_group <- m_durs_age_group * (365 / 12)
 
 c_durs_age_group <- durs |>
-  filter(rel2 == "Casual/Other", agegrp_match) |>
+  filter(rel2 == "Casual/Other") |>
   pull(dur)
 
-c_durs_age_group_not_matched <- durs |>
-  filter(rel2 == "Casual/Other", !agegrp_match) |>
-  ungroup() |>
-  summarize(dur = median(dur)) |>
-  pull(dur)
-
-cdurs <- c(c_durs_age_group, c_durs_age_group_not_matched)
-
-out$casual$duration$by_age_group <- cdurs * (365 / 12)
+out$casual$duration$by_age_group <- c_durs_age_group * (365 / 12)
 
 # save out as yaml
 params_name <- "nw_params.yaml"

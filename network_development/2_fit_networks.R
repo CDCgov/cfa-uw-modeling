@@ -17,7 +17,6 @@ this_seed <- 11111
 age_min <- 15 # Age at entry
 age_max <- 50 # Age at exit
 units_per_year <- 365 # Days
-
 drate <- (1 / (age_max - age_min)) * (1 / units_per_year)
 
 ## Load behavioral params estimated from data
@@ -27,7 +26,13 @@ x <- yaml::read_yaml(here::here(
   "nw_params.yaml"
 ))
 
-
+## ERGM controls for fitting
+ergm_controls <- control.ergm(
+  seed = this_seed,
+  MCMC.prop = ~sparse,
+  MCMC.interval = 2048 * 10,
+  main.method = "Stochastic-Approximation"
+)
 # -----------------------------------------------------------------
 # Generate initial network ----------------------------------------
 # -----------------------------------------------------------------
@@ -88,17 +93,10 @@ cas_prelim_targets <- unname(c(
 ))
 
 ## Dissolution component
-### Re-arrange targets so that non-age-group-matched
-### duration estimate is first in vector instead of last
-durs <- c(
-  x$casual$duration$by_age_group[8],
-  x$casual$duration$by_age_group[-c(7:8)]
-)
-
 cas_diss <- dissolution_coefs(
   dissolution = ~ offset(edges) +
     offset(nodematch(~age_group, diff = TRUE, levels = 1:6)),
-  duration = durs,
+  duration = x$casual$duration$by_age_group,
   d.rate = drate
 )
 
@@ -115,12 +113,7 @@ cas_prelim_netest <- EpiModel::netest(
   target.stats = cas_prelim_targets,
   coef.diss = cas_diss,
   constraints = cas_constraints,
-  set.control.ergm = control.ergm(
-    seed = this_seed,
-    MCMC.prop = ~sparse,
-    MCMC.interval = 2048 * 5,
-    main.method = "Stochastic-Approximation"
-  )
+  set.control.ergm = ergm_controls
 )
 
 ### Set deg_casual degree attributes to base nw --------------------
@@ -155,6 +148,7 @@ main_nm_age_group <- calc_targets(
   diff = TRUE
 )
 main_agemix <- calc_targets(nw, x, "main", "absdiff_sqrt_age")
+main_cross <- calc_targets(nw, x, "main", "cross_network")
 
 main_targets <- unname(c(
   main_edges,
@@ -163,18 +157,14 @@ main_targets <- unname(c(
   main_nf_race[1],
   main_nm_race,
   main_agemix,
-  x$main$cross * main_edges * 2
+  main_cross
 ))
 
 ### Dissolution component
-mdurs <- c(
-  x$main$duration$by_age_group[8],
-  x$main$duration$by_age_group[-c(7:8)]
-)
 main_diss <- dissolution_coefs(
   dissolution = ~ offset(edges) +
     offset(nodematch(~age_group, diff = TRUE, levels = 1:6)),
-  duration = mdurs,
+  duration = x$main$duration$by_age_group,
   d.rate = drate
 )
 
@@ -191,12 +181,7 @@ main_netest <- EpiModel::netest(
   target.stats = main_targets,
   coef.diss = main_diss,
   constraints = main_constraints,
-  set.control.ergm = control.ergm(
-    seed = this_seed,
-    MCMC.prop = ~sparse,
-    MCMC.interval = 2048 * 10,
-    main.method = "Stochastic-Approximation"
-  )
+  set.control.ergm = ergm_controls
 )
 
 ### Set deg_main degree attributes -----------------------------------
@@ -215,6 +200,8 @@ cas_form <- ~ edges +
   concurrent() +
   nodefactor(~deg_main)
 
+cas_cross <- calc_targets(nw, x, "casual", "cross_network")
+
 cas_targets <- unname(c(
   cas_edges,
   cas_nm_age_group[1:6],
@@ -223,7 +210,7 @@ cas_targets <- unname(c(
   cas_nf_race[1],
   cas_nm_race,
   cas_conc,
-  x$casual$cross * cas_edges * 2
+  cas_cross
 ))
 
 ## Fit Model
@@ -233,12 +220,7 @@ cas_netest <- EpiModel::netest(
   target.stats = cas_targets,
   coef.diss = cas_diss,
   constraints = cas_constraints,
-  set.control.ergm = control.ergm(
-    seed = this_seed,
-    MCMC.prop = ~sparse,
-    MCMC.interval = 2048 * 5,
-    main.method = "Stochastic-Approximation"
-  )
+  set.control.ergm = ergm_controls
 )
 
 ## Inst network ----------------------------------------------------

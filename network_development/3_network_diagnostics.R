@@ -32,7 +32,6 @@ plot(m3)
 g3 <- gof(nets[[3]]$fit, GOF = ~model)
 
 # Network Diagnostics via Simulation ------------
-
 ncores <- parallel::detectCores()
 nsims <- 10
 nsteps <- 1000
