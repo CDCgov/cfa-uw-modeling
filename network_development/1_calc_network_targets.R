@@ -243,7 +243,8 @@ out$casual$nodecov$agesq <- pred
 ## Age group - by group
 agegrp_glm_each <- survey::svyglm(
   agegrp_match ~ rel2 + as.factor(age_group),
-  design = lsvy
+  design = lsvy,
+  family = quasibinomial()
 )
 
 agegrp_data <- tibble(
