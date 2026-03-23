@@ -8,6 +8,9 @@ series of papers modeling sexually transmitted infections among heterosexuals in
 infertility in women
 3) [tbd]
 
+## NSFG survey data
+Survey data from the National Survey of Family Growth's 2017-2019 cycle is required to estimate the behavioral parameters and should be located in `input/surveys/`. These files are publicly available online, and files are split between female and male respondents. The female pregnancy dataset is not required for this project.
+
 ## Maintainer
 Emily Pollock, PhD, ruu7@cdc.gov
 
