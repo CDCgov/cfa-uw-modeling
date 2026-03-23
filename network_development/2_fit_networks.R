@@ -40,7 +40,7 @@ ergm_controls <- control.ergm(
 ## Generates empty network with nodal attributes reflecting pop specs
 nw <- generate_init_network(x, seed = this_seed)
 ## Set deg_main to 0 for preliminary casual network fitting
-set.vertex.attribute(nw, "deg_main", rep(0, x$pop$size))
+nw <- set.vertex.attribute(nw, "deg_main", rep(0, x$pop$size))
 
 # -----------------------------------------------------------------
 # Estimate Networks -----------------------------------------------
