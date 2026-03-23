@@ -89,7 +89,7 @@ inst_static
 ## the degree distributions change over time when simulated with
 # vital dynamics and changing nodal degree terms
 ## that influence formation in other networks.
-## See `04_network_vital_dynamics_diag.R`
+## See `4_network_vital_dynamics_diag.R`
 
 ## Degree based on netest object fit
 plot_final_degrees(nets[[1]], "main", yaml_params_loc)
