@@ -28,7 +28,8 @@ out$pop$female$dist <- c(0.5, 0.5)
 out$pop$age$min <- 15
 out$pop$age$max <- 49
 out$pop$age_group$levels <- 1:7
-# 15-18, 19-24, then 5-yr ints
+## 15-18, 19-24, then 5-yr ints
+## (based on Hamilton et al 2023 HIV in the South paper)
 out$pop$age_group$dist <- c(0.114, 0.171, rep(0.143, 5))
 
 out$pop$race$levels <- c("B", "H", "O", "W")
@@ -271,7 +272,8 @@ out$casual$nodematch$age_group$each <- agegrp_data |>
 ## Age group - global
 agegrp_glm <- survey::svyglm(
   agegrp_match ~ rel2,
-  design = lsvy
+  design = lsvy,
+  family = quasibinomial()
 )
 rel_cats <- tibble(rel2 = c("Marriage/Cohab", "Casual/Other"))
 rel_cats$ag_match <- predict(agegrp_glm, newdata = rel_cats, type = "response")
@@ -289,7 +291,8 @@ out$casual$nodematch$age_group$global <- rel_cats |>
 ## Race - by group
 race_glm_each <- survey::svyglm(
   race_match ~ rel2 + as.factor(race),
-  design = lsvy
+  design = lsvy,
+  family = quasibinomial()
 )
 
 race_data <- tibble(
@@ -316,7 +319,8 @@ out$casual$nodematch$race$each <- race_data |>
 ## Race - global
 race_glm <- survey::svyglm(
   race_match ~ rel2,
-  design = lsvy
+  design = lsvy,
+  family = quasibinomial()
 )
 rel_cats <- tibble(rel2 = c("Marriage/Cohab", "Casual/Other"))
 rel_cats$race_match <- predict(race_glm, newdata = rel_cats, type = "response")
@@ -346,7 +350,8 @@ out$casual$concurrent <- mean(predicted)
 
 m_cross <- survey::svyglm(
   cross_network ~ deg_main,
-  design = wsvy
+  design = wsvy,
+  family = quasibinomial()
 )
 
 m_predicted <- predict(
@@ -357,7 +362,8 @@ m_predicted <- predict(
 
 c_cross <- survey::svyglm(
   cross_network ~ deg_casual > 0,
-  design = wsvy
+  design = wsvy,
+  family = quasibinomial()
 )
 
 c_predicted <- predict(
