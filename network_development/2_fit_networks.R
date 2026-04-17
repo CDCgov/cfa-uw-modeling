@@ -1,198 +1,286 @@
 library(epimodelcfa)
 
-# Required objects --------------------------------------------
-this_seed <- 11111
-age_min <- 15
-age_max <- 50
-units_per_year <- 365
-drate <- (1 / (age_max - age_min)) * (1 / units_per_year) # baseline departure rate, aging out (no deaths)
-# adj b/c people aging out more likely to be in a main rel
-main_drate_adjustment <- 1.40
-casual_drate_adjustment <- 0 # very few people who age out of sim are in casual rels
+# -----------------------------------------------------------------
+# Required inputs & setup -----------------------------------------
+# -----------------------------------------------------------------
 
-x <- yaml::read_yaml(here::here("input", "params", "nw_params.yaml"))
-out_folder <- here::here("input", "network_fits", "latest")
+## Set out folder
+out_folder <- here::here("input", "network_fits")
 if (!dir.exists(out_folder)) {
   dir.create(out_folder, recursive = TRUE)
 }
 
-# Generate initial network ----------------------------------------
-## generates empty network with nodal attributes reflecting pop specs
-## and initial guess at casual degree distribution to fit main network
-nw <- generate_init_network(
-  x,
-  seed = this_seed,
-  assign_deg_casual = FALSE,
-  assign_deg_main = TRUE,
-  olderpartner = TRUE
-)
+## Set seed
+this_seed <- 11111
 
-# Estimate Networks ----------------------------------------------
-## Shared control settings ---------------------------
+## Caclulate departure rate based on rate of aging out of pop
+age_min <- 15 # Age at entry
+age_max <- 50 # Age at exit
+units_per_year <- 365 # Days
+drate <- (1 / (age_max - age_min)) * (1 / units_per_year)
+
+## Load behavioral params estimated from data
+x <- yaml::read_yaml(here::here(
+  "input",
+  "params",
+  "nw_params.yaml"
+))
+
+## ERGM controls for fitting
 ergm_controls <- control.ergm(
   seed = this_seed,
   MCMC.prop = ~sparse,
   MCMC.interval = 2048 * 10,
-  MCMC.samplesize = 2048 * 10,
-  SA.interval = 2048 * 10,
-  SA.samplesize = 2048 * 10,
   main.method = "Stochastic-Approximation"
 )
-## Casual (fit first b/c more important than main) ----------------------------------
-### Formation model
-cas_form <- ~ edges +
-  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
-  nodefactor(~race, levels = c(1:2, 4)) +
-  nodefactor(~age_group, levels = 1:5) +
-  concurrent() +
-  offset(nodefactor(~deg_main))
+# -----------------------------------------------------------------
+# Generate initial network ----------------------------------------
+# -----------------------------------------------------------------
+
+## Generates empty network with nodal attributes reflecting pop specs
+nw <- generate_init_network(x, seed = this_seed)
+## Set deg_main to 0 for preliminary casual network fitting
+nw <- set.vertex.attribute(nw, "deg_main", rep(0, x$pop$size))
+
+# -----------------------------------------------------------------
+# Estimate Networks -----------------------------------------------
+# -----------------------------------------------------------------
+
+## Workflow:
+## 1) Fit preliminary casual network to set plausible degree distribution
+## 2) Add deg_casual attribute to nw object based on this fit
+## 3) Fit main network (includes cross-network degree term in formation)
+## 4) Update deg_main attribute based on this fit
+## 5) Fit final casual network (incl cross-network degree term)
+## 6) Fit inst network
+## 7) Combine main, casual, and inst fits into list object, save out
+
+## Prelim Casual Network -------------------------------------------
+### Formation component
+### (no cross-network term in prelim model)
+cas_prelim_form <- ~ edges +
+  nodematch(~age_group, diff = TRUE, levels = 1:6) +
+  nodefactor(~ floor(age), levels = 1) +
+  nodefactor(~age_group, levels = 1:6) +
+  nodefactor(~race, levels = 1) +
+  nodematch(~race) +
+  concurrent()
 
 ### Calc and Compile Targets
 cas_edges <- calc_targets(nw, x, "casual", "edges")
-cas_nf_agegp <- calc_targets(nw, x, "casual", "nodefactor", "age_group")
+cas_nf_age <- calc_targets(nw, x, "casual", "nodefactor", "age")
+cas_nf_age_group <- calc_targets(nw, x, "casual", "nodefactor", "age_group")
 cas_nf_race <- calc_targets(nw, x, "casual", "nodefactor", "race")
-cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race", diff = TRUE)
-cas_nm_ag <- calc_targets(nw, x, "casual", "nodematch", "age_group", diff = TRUE)
-cas_nc_age <- calc_targets(nw, x, "casual", "nodecov", "age")
-cas_nc_agesq <- calc_targets(nw, x, "casual", "nodecov", "age", attr_squared = TRUE)
+cas_nm_race <- calc_targets(nw, x, "casual", "nodematch", "race")
+cas_nm_age_group <- calc_targets(
+  nw,
+  x,
+  "casual",
+  "nodematch",
+  "age_group",
+  diff = TRUE
+)
 cas_conc <- calc_targets(nw, x, "casual", "concurrent")
 
-cas_targets <- unname(c(
+cas_prelim_targets <- unname(c(
   cas_edges,
-  cas_nm_race[c(1:2, 4)],
-  cas_nf_race[c(1:2, 4)],
-  cas_nf_agegp[1:5],
+  cas_nm_age_group[1:6],
+  cas_nf_age[1],
+  cas_nf_age_group[1:6],
+  cas_nf_race[1],
+  cas_nm_race,
   cas_conc
 ))
 
-### Additional Arguments
-cas_offset <- c(-Inf)
-
+## Dissolution component
 cas_diss <- dissolution_coefs(
-  dissolution = ~ offset(edges),
-  duration = x$casual$duration$overall,
-  d.rate = drate * casual_drate_adjustment
+  dissolution = ~ offset(edges) +
+    offset(nodematch(~age_group, diff = TRUE, levels = 1:6)),
+  duration = x$casual$duration$by_age_group,
+  d.rate = drate
 )
 
-cas_constraints <- ~
+## Network constraints
+### no same-sex ties, max degree = 3, sparse network hint
+cas_constraints <- ~ bd(maxout = 3) +
   sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = matrix( # should be same as x$casual$mixmat$race
-      c(
-        0.1354340, 0.0435742, 0.0055867, 0.0050679,
-        0.0435742, 0.0970881, 0.0294654, 0.0386104,
-        0.0055867, 0.0294654, 0.0187281, 0.0441261,
-        0.0050679, 0.0386104, 0.0441261, 0.4158885
-      ),
-      byrow = TRUE,
-      nrow = 4, ncol = 4
-    ))
+  blocks(attr = ~female, levels2 = diag(TRUE, 2))
 
-### Fit
-cas_netest <- EpiModel::netest(
+### Fit Model
+cas_prelim_netest <- EpiModel::netest(
   nw = nw,
-  formation = cas_form,
-  target.stats = cas_targets,
-  coef.form = cas_offset,
+  formation = cas_prelim_form,
+  target.stats = cas_prelim_targets,
   coef.diss = cas_diss,
   constraints = cas_constraints,
   set.control.ergm = ergm_controls
 )
 
-### Set degree attributes -----------------------------------
-nw <- set.vertex.attribute(nw, "deg_casual", get_degree(cas_netest$newnetwork))
+### Set deg_casual degree attributes to base nw --------------------
+nw <- set.vertex.attribute(
+  nw,
+  "deg_casual",
+  get_degree(cas_prelim_netest$newnetwork)
+)
 
-
-## Main ---------------------------------------------------------
-### Formation model
+## Main Model -----------------------------------------------------
+### Formation component
 main_form <- ~ edges +
-  nodematch(~race, diff = TRUE, levels = c(1:2, 4)) +
-  nodefactor(~race, levels = c(1:2, 4)) +
-  nodecov(~age) +
-  nodecov(~agesq) +
+  nodematch(~age_group, diff = TRUE, levels = 1:6) +
+  nodefactor(~age_group, levels = 1:6) +
+  nodefactor(~race, levels = 1) +
+  nodematch(~race) +
   absdiff(~ sqrt(age)) +
-  offset(nodefactor(~ deg_casual > 0)) +
-  offset(nodefactor(~ olderpartner > 0))
+  nodefactor(~ deg_casual > 0)
 
 ### Calc and Compile Targets
 main_edges <- calc_targets(nw, x, "main", "edges")
-main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race", diff = TRUE)
+main_nf_age <- calc_targets(nw, x, "main", "nodefactor", "age")
+main_nf_age_group <- calc_targets(nw, x, "main", "nodefactor", "age_group")
 main_nf_race <- calc_targets(nw, x, "main", "nodefactor", "race")
-main_nc_age <- calc_targets(nw, x, "main", "nodecov", "age")
-main_nc_agesq <- calc_targets(nw, x, "main", "nodecov", "age", attr_squared = TRUE)
+main_nm_race <- calc_targets(nw, x, "main", "nodematch", "race")
+main_nm_age_group <- calc_targets(
+  nw,
+  x,
+  "main",
+  "nodematch",
+  "age_group",
+  diff = TRUE
+)
 main_agemix <- calc_targets(nw, x, "main", "absdiff_sqrt_age")
+main_cross <- calc_targets(nw, x, "main", "cross_network")
 
 main_targets <- unname(c(
   main_edges,
-  main_nm_race[c(1:2, 4)],
-  main_nf_race[c(1:2, 4)],
-  main_nc_age,
-  main_nc_agesq,
-  main_agemix
+  main_nm_age_group[1:6],
+  main_nf_age_group[1:6],
+  main_nf_race[1],
+  main_nm_race,
+  main_agemix,
+  main_cross
 ))
 
-### Additional Arguments
-main_offset <- rep(-Inf, 2)
-
-main_constraints <- ~
-  bd(maxout = 1) +
-    sparse +
-    blocks(attr = ~female, levels2 = diag(TRUE, 2)) +
-    strat(attr = ~race, pmat = matrix( # should be same as x$main$mixmat$race
-      c(
-        0.057178141, 0.02842713, 0.00417141, 0.003909043,
-        0.028427131, 0.08849135, 0.02961956, 0.039865982,
-        0.004171410, 0.02961956, 0.02019247, 0.049425911,
-        0.003909043, 0.03986598, 0.04942591, 0.523299963
-      ),
-      byrow = TRUE,
-      nrow = 4, ncol = 4
-    ))
-
+### Dissolution component
 main_diss <- dissolution_coefs(
-  dissolution = ~ offset(edges),
-  duration = x$main$duration$overall,
-  d.rate = drate * main_drate_adjustment
+  dissolution = ~ offset(edges) +
+    offset(nodematch(~age_group, diff = TRUE, levels = 1:6)),
+  duration = x$main$duration$by_age_group,
+  d.rate = drate
 )
-### Fit
+
+### Main constraints
+### no same-sex ties, max degree = 1, sparse network hint
+main_constraints <- ~ bd(maxout = 1) +
+  sparse +
+  blocks(attr = ~female, levels2 = diag(TRUE, 2))
+
+### Fit Model
 main_netest <- EpiModel::netest(
   nw = nw,
   formation = main_form,
   target.stats = main_targets,
-  coef.form = main_offset,
   coef.diss = main_diss,
   constraints = main_constraints,
   set.control.ergm = ergm_controls
 )
 
-### Set degree attributes -----------------------------------
+### Set deg_main degree attributes -----------------------------------
 nw <- set.vertex.attribute(nw, "deg_main", get_degree(main_netest$newnetwork))
 
+## Fit final casual network
+### now includes cross-network degree term
+
+### Updated formation component
+cas_form <- ~ edges +
+  nodematch(~age_group, diff = TRUE, levels = 1:6) +
+  nodefactor(~ floor(age), levels = 1) +
+  nodefactor(~age_group, levels = 1:6) +
+  nodefactor(~race, levels = 1) +
+  nodematch(~race) +
+  concurrent() +
+  nodefactor(~deg_main)
+
+cas_cross <- calc_targets(nw, x, "casual", "cross_network")
+
+cas_targets <- unname(c(
+  cas_edges,
+  cas_nm_age_group[1:6],
+  cas_nf_age[1],
+  cas_nf_age_group[1:6],
+  cas_nf_race[1],
+  cas_nm_race,
+  cas_conc,
+  cas_cross
+))
+
+## Fit Model
+cas_netest <- EpiModel::netest(
+  nw = nw,
+  formation = cas_form,
+  target.stats = cas_targets,
+  coef.diss = cas_diss,
+  constraints = cas_constraints,
+  set.control.ergm = ergm_controls
+)
+
 ## Inst network ----------------------------------------------------
-### Formation model
+### Formation component
 inst_form <- ~ edges +
-  nodefactor(~race, levels = c(1:2, 4)) +
+  nodefactor(~race, levels = 1) +
   nodefactor(~age_group, levels = 1:3) +
   absdiff(~ sqrt(age))
 
 ### Calc and Compile Targets
-inst_edges <- calc_targets(nw, x, "inst", "edges", inst_correct = TRUE, time_unit = "days")
-inst_nf_race <- calc_targets(nw, x, "inst", "nodefactor", "race", inst_correct = TRUE, time_unit = "days")
-inst_nf_agegrp <- calc_targets(nw, x, "inst", "nodefactor", "age_group",
-  inst_correct = TRUE, time_unit = "days"
+inst_edges <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "edges",
+  inst_correct = TRUE,
+  time_unit = "days"
 )
-inst_agemix <- calc_targets(nw, x, "inst", "absdiff_sqrt_age", inst_correct = TRUE, time_unit = "days")
+inst_nf_race <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "nodefactor",
+  "race",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
+inst_nf_agegrp <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "nodefactor",
+  "age_group",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
+inst_agemix <- calc_targets(
+  nw,
+  x,
+  "inst",
+  "absdiff_sqrt_age",
+  inst_correct = TRUE,
+  time_unit = "days"
+)
 
 inst_targets <- unname(c(
   inst_edges,
-  inst_nf_race[c(1:2, 4)],
+  inst_nf_race[1],
   inst_nf_agegrp[1:3],
   inst_agemix
 ))
 
-### Additional Arguments
-inst_offset <- c() # no offsets for inst network in formation model
-inst_diss <- dissolution_coefs(dissolution = ~ offset(edges), duration = 1, d.rate = 0)
+### Dissolution component
+inst_diss <- dissolution_coefs(
+  dissolution = ~ offset(edges),
+  duration = 1,
+  d.rate = 0
+)
+
+### Constraints
 inst_constraints <- ~ sparse + blocks(attr = ~female, levels2 = diag(TRUE, 2))
 
 ### Fit
@@ -200,12 +288,22 @@ inst_netest <- EpiModel::netest(
   nw = nw,
   formation = inst_form,
   target.stats = inst_targets,
-  coef.form = inst_offset,
   coef.diss = inst_diss,
   constraints = inst_constraints,
-  set.control.ergm = ergm_controls
+  set.control.ergm = control.ergm(
+    seed = this_seed,
+    MCMC.prop = ~sparse,
+    MCMC.interval = 2048,
+    main.method = "Stochastic-Approximation"
+  )
 )
 
+# ------------------------------------------------------------------
 # Save out ----------------------------------------------------------
+# ------------------------------------------------------------------
+
 est <- list(main_netest, cas_netest, inst_netest)
-saveRDS(est, file = file.path(out_folder, "nw.rds"))
+saveRDS(
+  est,
+  file = file.path(out_folder, "nw.rds")
+)

@@ -1,9 +1,16 @@
+library(tidyverse)
+library(epimodelcfa)
 # load data
 # location of survey data
 input_folder <- file.path(here::here("input", "nsfg"))
 
 w <- readRDS(file.path(input_folder, "nsfg_wide.rds"))
+## change levels to force W to be ref category in glms
+w <- w |>
+  mutate(race = factor(race, levels = c("W", "B", "O", "H")))
 l <- readRDS(file.path(input_folder, "nsfg_long.rds"))
+l <- l |>
+  mutate(race = factor(race, levels = c("W", "B", "O", "H")))
 
 # destination folder for parameter yaml
 param_folder <- here::here("input", "params")
@@ -21,154 +28,375 @@ out$pop$female$dist <- c(0.5, 0.5)
 out$pop$age$min <- 15
 out$pop$age$max <- 49
 out$pop$age_group$levels <- 1:7
-out$pop$age_group$dist <- c(rep(0.143, 6), 0.142) # even ages with slightly fewer 45-49
+## 15-18, 19-24, then 5-yr ints
+## (based on Hamilton et al 2023 HIV in the South paper)
+out$pop$age_group$dist <- c(0.114, 0.171, rep(0.143, 5))
 
 out$pop$race$levels <- c("B", "H", "O", "W")
 out$pop$race$dist <- c(0.12, 0.19, 0.11, 0.58) # based on 2020 census
 
 # Rake surveys to population margins ---------------------------
 us_pop <- 144764299 # from census
-pop_agegroup <- data.frame(age_group = out$pop$age_group$levels, Freq = out$pop$age_group$dist * us_pop)
-pop_race <- data.frame(race = out$pop$race$levels, Freq = out$pop$race$dist * us_pop)
+pop_agegroup <- data.frame(
+  age_group = out$pop$age_group$levels,
+  Freq = out$pop$age_group$dist * us_pop
+)
+pop_race <- data.frame(
+  race = out$pop$race$levels,
+  Freq = out$pop$race$dist * us_pop
+)
 
-wsvy <- srvyr::as_survey_design(w, ids = secu, strata = sest, weights = weight, nest = TRUE)
-lsvy <- srvyr::as_survey_design(l, ids = secu, strata = sest, weights = weight, nest = TRUE)
+pop_sex <- data.frame(
+  female = out$pop$female$levels,
+  Freq = out$pop$female$dist * us_pop
+)
 
-wsvy <- survey::rake(wsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))
-lsvy <- survey::rake(lsvy, list(~age_group, ~race), list(pop_agegroup, pop_race))
+wsvy <- srvyr::as_survey_design(
+  w,
+  ids = secu,
+  strata = sest,
+  weights = weight,
+  nest = TRUE
+)
+lsvy <- srvyr::as_survey_design(
+  l,
+  ids = secu,
+  strata = sest,
+  weights = weight,
+  nest = TRUE
+)
+
+wsvy <- survey::rake(
+  wsvy,
+  list(~age_group, ~race, ~female),
+  list(pop_agegroup, pop_race, pop_sex)
+)
+
+lsvy <- survey::rake(
+  lsvy,
+  list(~age_group, ~race, ~female),
+  list(pop_agegroup, pop_race, pop_sex)
+)
+
 
 # Add age squared and cross-network ties ---------------------------
-wsvy <- wsvy |> dplyr::mutate(
+wsvy <- wsvy |>
+  dplyr::mutate(
+    agesq = age^2,
+    agecb = age^3,
+    cross_network = ifelse(deg_main > 0 & deg_casual > 0, 1, 0),
+    conc = ifelse(deg_casual > 1, 1, 0)
+  )
+
+lsvy <- lsvy |>
+  dplyr::mutate(
+    absdiff_sqrt_age = abs(sqrt(age) - sqrt(alter_age))
+  )
+
+# Make Prediction Pop DF for degree- related GLMs ------------------
+ages <- seq(out$pop$age$min, (out$pop$age$max))
+races <- out$pop$race$levels
+
+prediction_pop <- tibble(
+  age = rep(ages, each = length(races)),
   agesq = age^2,
-  agecb = age^3,
-  cross_network = ifelse(deg_main > 0 & deg_casual > 0, 1, 0),
-  conc = ifelse(deg_casual > 1, 1, 0)
+  race = rep(races, times = length(ages)),
+  age_group = case_when(
+    age < 50 & age >= 45 ~ 7,
+    age < 45 & age >= 40 ~ 6,
+    age < 40 & age >= 35 ~ 5,
+    age < 35 & age >= 30 ~ 4,
+    age < 30 & age >= 25 ~ 3,
+    age < 25 & age >= 19 ~ 2,
+    age < 19 ~ 1
+  )
 )
 
-lsvy <- lsvy |> dplyr::mutate(
-  absdiff_sqrt_age = abs(sqrt(age) - sqrt(alter_age))
+out$prediction_pop$age <- prediction_pop$age
+out$prediction_pop$agesq <- prediction_pop$agesq
+out$prediction_pop$age_group <- prediction_pop$age_group
+out$prediction_pop$race <- prediction_pop$race
+
+# -------------------------------------------------------------------------
+# Fit GLMs for main, casual, inst degree, olderpartner (nodefactor) -------
+# -------------------------------------------------------------------------
+m_edges_mod <- survey::svyglm(
+  deg_main ~ 1,
+  design = wsvy,
+  family = quasipoisson()
 )
 
-# Main Network Parameters -----------------------------------
-## Edges
-mod <- survey::svyglm(deg_main ~ 1, design = wsvy, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$main$edges <- pred
+c_edges_mod <- survey::svyglm(
+  deg_casual ~ 1,
+  design = wsvy,
+  family = quasipoisson()
+)
+
+i_edges_mod <- survey::svyglm(
+  deg_inst_high ~ 1,
+  design = wsvy,
+  family = quasipoisson()
+)
+
+out$main$edges <- exp(coef(m_edges_mod)[[1]])
+out$casual$edges <- exp(coef(c_edges_mod)[[1]])
+out$inst$edges <- exp(coef(i_edges_mod)[[1]])
+
+main_glm <- survey::svyglm(
+  deg_main ~ age_group + sqrt(age_group) + race,
+  design = wsvy,
+  family = quasipoisson()
+)
+
+casual_glm <- survey::svyglm(
+  deg_casual ~ age_group + sqrt(age_group) + race,
+  design = wsvy,
+  family = quasipoisson()
+)
+
+inst_glm <- survey::svyglm(
+  deg_inst_high ~ age_group + sqrt(age_group) + race,
+  design = wsvy,
+  family = quasipoisson()
+)
+
+prediction_pop$deg_main <- predict(
+  main_glm,
+  newdata = prediction_pop,
+  type = "response"
+)
+
+prediction_pop$deg_casual <- predict(
+  casual_glm,
+  newdata = prediction_pop,
+  type = "response"
+)
+
+prediction_pop$deg_inst <- predict(
+  inst_glm,
+  newdata = prediction_pop,
+  type = "response"
+)
+
+out$main$nodefactor <- prediction_pop$deg_main |> as.numeric()
+out$casual$nodefactor <- prediction_pop$deg_casual |> as.numeric()
+out$inst$nodefactor <- prediction_pop$deg_inst |> as.numeric()
 
 ## Older partners
-mod <- survey::svyglm(olderpartner ~ age, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(age = 15:49), type = "response")
-out$main$olderpartner <- as.numeric(pred)
-
-## Cross-network ties (main-casual)
-mod <- survey::svyglm(cross_network ~ 1, design = wsvy, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$main$cross_network <- pred
-out$casual$cross_network <- pred
-
-## Nodefactor (activity by age group and race)
-mod <- survey::svyglm(deg_main ~ age_group, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(age_group = out$pop$age_group$levels), type = "response")
-out$main$nodefactor$age_group <- as.numeric(pred)
-
-mod <- survey::svyglm(deg_main ~ race, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(race = out$pop$race$levels), type = "response")
-out$main$nodefactor$race <- as.numeric(pred)
-
-mod <- survey::svyglm(deg_main ~ age + agesq + race, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(
-  age = rep(15:49, 4),
-  agesq = (rep(15:49, 4))**2,
-  race = rep(out$pop$race$levels, each = length(15:49))
-), type = "response")
-out$main$nodefactor$age_race <- as.numeric(pred)
-
-## Nodecov (mean of combined age and agesq across all rels)
-mod <- survey::svyglm(comb_age ~ 1, design = lsvy, subset = rel2 == "Marriage/Cohab", family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$main$nodecov$age <- pred
-
-mod <- survey::svyglm(comb_agesq ~ 1, design = lsvy, subset = rel2 == "Marriage/Cohab", family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$main$nodecov$agesq <- pred
-
-# Nodematch (by race, and overall)
-mod <- survey::svyglm(race_match ~ race, design = lsvy, subset = rel2 == "Marriage/Cohab", family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(race = out$pop$race$levels), type = "response")
-out$main$nodematch$race <- as.numeric(pred)
-
-# Absdiff (mean abs val in sqrt of age between partners)
-mod <- survey::svyglm(absdiff_sqrt_age ~ 1,
-  design = lsvy,
-  subset = rel2 == "Marriage/Cohab", family = quasipoisson()
+op_glm <- survey::svyglm(
+  olderpartner ~ age_group + sqrt(age_group) + race,
+  design = wsvy,
+  family = quasibinomial()
 )
-pred <- exp(coef(mod)[[1]])
-out$main$absdiff_sqrt_age <- pred
 
-# Casual Relationships Parameters -------------------
-## Edges
-mod <- survey::svyglm(deg_casual ~ 1, design = wsvy, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$casual$edges <- pred
+prediction_pop$olderpartner <- predict(
+  op_glm,
+  newdata = prediction_pop,
+  type = "response"
+) #nolint
+out$main$olderpartner <- prediction_pop$olderpartner |> as.numeric()
 
-## Concurrency
-mod <- survey::svyglm(conc ~ 1, design = wsvy, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$casual$concurrent <- pred
-
-## Nodefactor (activity by age and race)
-mod <- survey::svyglm(deg_casual ~ age + agesq + agecb + race, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(
-  age = rep(15:49, 4),
-  agesq = (rep(15:49, 4))**2,
-  agecb = (rep(15:49, 4))**3,
-  race = rep(out$pop$race$levels, each = length(15:49))
-), type = "response")
-out$casual$nodefactor$age_race <- as.numeric(pred)
-
-## Nodematch (by race)
-mod <- survey::svyglm(race_match ~ race, design = lsvy, subset = rel2 == "Casual/Other", family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(race = out$pop$race$levels), type = "response")
-out$casual$nodematch$race <- as.numeric(pred)
-
-mod <- survey::svyglm(agegrp_match ~ age_group, design = lsvy, subset = rel2 == "Casual/Other", family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(age_group = out$pop$age_group$levels), type = "response")
-out$casual$nodematch$age_group <- as.numeric(pred)
-
-## Absdiff (mean abs val in sqrt of age between partners)
-mod <- survey::svyglm(absdiff_sqrt_age ~ 1,
+# -----------------------------------------------------------------------------
+# Nodecov (mean of combined age and agesq across all rels)
+# -----------------------------------------------------------------------------
+## MAIN
+mod <- survey::svyglm(
+  comb_age ~ 1,
   design = lsvy,
-  subset = rel2 == "Casual/Other" & curr == 1, family = quasipoisson()
-)
-pred <- exp(coef(mod)[[1]])
-out$casual$absdiff_sqrt_age <- pred
-
-## Nodecov (mean of combined age and agesq across all rels)
-mod <- survey::svyglm(comb_age ~ 1, design = lsvy, subset = rel2 == "Casual/Other" & curr == 1, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$casual$nodecov$age <- pred
-
-mod <- survey::svyglm(comb_agesq ~ 1,
-  design = lsvy, subset = rel2 == "Casual/Other" & curr == 1,
+  subset = rel2 == "Marriage/Cohab",
   family = quasipoisson()
 )
 pred <- exp(coef(mod)[[1]])
+out$main$nodecov$age <- pred
+
+mod <- survey::svyglm(
+  comb_agesq ~ 1,
+  design = lsvy,
+  subset = rel2 == "Marriage/Cohab",
+  family = quasipoisson()
+)
+pred <- exp(coef(mod)[[1]])
+out$main$nodecov$agesq <- pred
+
+## CASUAL
+mod <- survey::svyglm(
+  comb_age ~ 1,
+  design = lsvy,
+  subset = rel2 == "Casual/Other",
+  family = quasipoisson()
+)
+pred <- exp(coef(mod)[[1]])
+out$casual$nodecov$age <- pred
+
+mod <- survey::svyglm(
+  comb_agesq ~ 1,
+  design = lsvy,
+  subset = rel2 == "Casual/Other",
+  family = quasipoisson()
+)
+
+pred <- exp(coef(mod)[[1]])
 out$casual$nodecov$agesq <- pred
 
-# Instantaneous Relationships Parameters -------------------
-out$inst$summary_time <- "year"
-## Edges
-mod <- survey::svyglm(deg_inst_high ~ 1, design = wsvy, family = quasipoisson())
-pred <- exp(coef(mod)[[1]])
-out$inst$edges <- pred
+# -----------------------------------------------------------------------------
+# Nodematch (Age Group and Race, global and per-group)
+# -----------------------------------------------------------------------------
+## Age group - by group
+agegrp_glm_each <- survey::svyglm(
+  agegrp_match ~ rel2 + as.factor(age_group),
+  design = lsvy,
+  family = quasibinomial()
+)
 
-## Nodefactor (activity by age + race)
-mod <- survey::svyglm(deg_inst_high ~ age + race, design = wsvy, family = quasipoisson())
-pred <- predict(mod, newdata = data.frame(
-  age = rep(15:49, 4),
-  race = rep(out$pop$race$levels, each = length(15:49))
-), type = "response")
-out$inst$nodefactor$age_race <- as.numeric(pred)
+agegrp_data <- tibble(
+  rel2 = rep(c("Marriage/Cohab", "Casual/Other"), each = 7),
+  age_group = rep(as.factor(1:7), 2)
+)
+
+agegrp_data$prob <- predict(
+  agegrp_glm_each,
+  newdata = agegrp_data,
+  type = "response"
+)
+
+out$main$nodematch$age_group$each <- agegrp_data |>
+  filter(rel2 == "Marriage/Cohab") |>
+  pull(prob) |>
+  as.numeric()
+
+out$casual$nodematch$age_group$each <- agegrp_data |>
+  filter(rel2 == "Casual/Other") |>
+  pull(prob) |>
+  as.numeric()
+
+## Age group - global
+agegrp_glm <- survey::svyglm(
+  agegrp_match ~ rel2,
+  design = lsvy,
+  family = quasibinomial()
+)
+rel_cats <- tibble(rel2 = c("Marriage/Cohab", "Casual/Other"))
+rel_cats$ag_match <- predict(agegrp_glm, newdata = rel_cats, type = "response")
+
+out$main$nodematch$age_group$global <- rel_cats |>
+  filter(rel2 == "Marriage/Cohab") |>
+  pull(ag_match) |>
+  as.numeric()
+
+out$casual$nodematch$age_group$global <- rel_cats |>
+  filter(rel2 == "Casual/Other") |>
+  pull(ag_match) |>
+  as.numeric()
+
+## Race - by group
+race_glm_each <- survey::svyglm(
+  race_match ~ rel2 + as.factor(race),
+  design = lsvy,
+  family = quasibinomial()
+)
+
+race_data <- tibble(
+  rel2 = rep(c("Marriage/Cohab", "Casual/Other"), each = 4),
+  race = rep(c("B", "H", "O", "W"), 2)
+)
+
+race_data$prob <- predict(
+  race_glm_each,
+  newdata = race_data,
+  type = "response"
+)
+
+out$main$nodematch$race$each <- race_data |>
+  filter(rel2 == "Marriage/Cohab") |>
+  pull(prob) |>
+  as.numeric()
+
+out$casual$nodematch$race$each <- race_data |>
+  filter(rel2 == "Casual/Other") |>
+  pull(prob) |>
+  as.numeric()
+
+## Race - global
+race_glm <- survey::svyglm(
+  race_match ~ rel2,
+  design = lsvy,
+  family = quasibinomial()
+)
+rel_cats <- tibble(rel2 = c("Marriage/Cohab", "Casual/Other"))
+rel_cats$race_match <- predict(race_glm, newdata = rel_cats, type = "response")
+
+out$main$nodematch$race$global <- rel_cats |>
+  filter(rel2 == "Marriage/Cohab") |>
+  pull(race_match) |>
+  as.numeric()
+
+out$casual$nodematch$race$global <- rel_cats |>
+  filter(rel2 == "Casual/Other") |>
+  pull(race_match) |>
+  as.numeric()
+
+# -----------------------------------------------------------------
+# Casual Concurrency & Cross Network ties--------------------------
+# -----------------------------------------------------------------
+## Concurrency in casual network
+conc_glm <- survey::svyglm(
+  conc ~ age + age_group + race,
+  design = wsvy,
+  family = quasibinomial()
+)
+
+predicted <- predict(conc_glm, newdata = prediction_pop, type = "response")
+out$casual$concurrent <- mean(predicted)
+
+m_cross <- survey::svyglm(
+  cross_network ~ deg_main,
+  design = wsvy,
+  family = quasibinomial()
+)
+
+m_predicted <- predict(
+  m_cross,
+  newdata = tibble(deg_main = 1),
+  type = "response"
+)
+
+c_cross <- survey::svyglm(
+  cross_network ~ deg_casual > 0,
+  design = wsvy,
+  family = quasibinomial()
+)
+
+c_predicted <- predict(
+  c_cross,
+  newdata = tibble(deg_casual = 1),
+  type = "response"
+)
+
+out$main$cross_network <- as.numeric(m_predicted)
+out$casual$cross_network <- as.numeric(c_predicted)
+
+# -----------------------------------------------------------------
+# Absdiff Age ----------------------------------------------
+# -----------------------------------------------------------------
+
+# Absdiff (mean abs val in sqrt of age between partners)
+mod <- survey::svyglm(
+  absdiff_sqrt_age ~ 1,
+  design = lsvy,
+  subset = rel2 == "Marriage/Cohab",
+  family = quasipoisson()
+)
+pred <- exp(coef(mod)[[1]])
+out$main$absdiff_sqrt_age <- pred
+## Absdiff (mean abs val in sqrt of age between partners)
+mod <- survey::svyglm(
+  absdiff_sqrt_age ~ 1,
+  design = lsvy,
+  subset = rel2 == "Casual/Other" & curr == 1,
+  family = quasipoisson()
+)
+pred <- exp(coef(mod)[[1]])
+out$casual$absdiff_sqrt_age <- pred
 
 ## Absdiff (mean abs val in sqrt of age between partners)
 ## no info in data on age of only inst partners, so use casual network
@@ -192,79 +420,35 @@ dur <- lsvy |>
 out$casual$duration$overall <- dur * (365 / 12)
 out$casual$duration$metric <- "days"
 
-# Mixing matrices for constraints ##################################
-alter_race_glm <- survey::svyolr(as.factor(alter_race) ~ race + age + rel2,
-  design = lsvy
-)
-lsvy$variables[, c("B", "H", "O", "W")] <- predict(alter_race_glm, newdata = lsvy$variables, type = "probs")
+## by age group
+## to match formation model we need a vector with
+## first entry: median of all unmatched rels and matched rels of ag7
+## median estimates for matched rels in ags 1-6
 
-totrels <- lsvy |>
-  dplyr::group_by(rel2, race) |>
-  dplyr::summarize(
-    tot = srvyr::survey_total(vartype = NULL),
-    B = srvyr::survey_mean(B, vartype = NULL),
-    H = srvyr::survey_mean(H, vartype = NULL),
-    O = srvyr::survey_mean(O, vartype = NULL),
-    W = srvyr::survey_mean(W, vartype = NULL)
-  ) |>
+lsvy <- lsvy |>
   dplyr::mutate(
-    B = B * tot,
-    H = H * tot,
-    O = O * tot,
-    W = W * tot
-  ) |>
-  dplyr::ungroup() |>
-  dplyr::select(-race, -rel2, -tot)
+    ag_cat = ifelse(
+      age_group < 7 & agegrp_match,
+      as.character(age_group),
+      "0"
+    )
+  )
 
-mainrels <- totrels[1:4, ]
-casrels <- totrels[5:8, ]
-mainprops <- mainrels / sum(mainrels)
-casprops <- casrels / sum(casrels)
+durs <- lsvy |>
+  dplyr::group_by(rel2, ag_cat) |>
+  dplyr::summarize(dur = srvyr::survey_median(partdur, na.rm = TRUE))
 
-main_race_mixmat <- epimodelcfa::matrix_symmetrical(mainprops)
-casual_race_mixmat <- epimodelcfa::matrix_symmetrical(casprops)
+m_durs_age_group <- durs |>
+  filter(rel2 == "Marriage/Cohab") |>
+  pull(dur)
 
-out$main$mixmat$race <- main_race_mixmat
-out$casual$mixmat$race <- casual_race_mixmat
+out$main$duration$by_age_group <- m_durs_age_group * (365 / 12)
 
-alter_age_glm <- survey::svyolr(as.factor(alter_age_group) ~ race + age + rel2, design = lsvy)
-lsvy$variables[, paste0("ag", 1:7)] <- predict(alter_age_glm, newdata = lsvy$variables, type = "probs")
+c_durs_age_group <- durs |>
+  filter(rel2 == "Casual/Other") |>
+  pull(dur)
 
-atotrels <- lsvy |>
-  dplyr::group_by(rel2, age_group) |>
-  dplyr::summarize(
-    tot = srvyr::survey_total(vartype = NULL),
-    ag1 = srvyr::survey_mean(ag1, vartype = NULL),
-    ag2 = srvyr::survey_mean(ag2, vartype = NULL),
-    ag3 = srvyr::survey_mean(ag3, vartype = NULL),
-    ag4 = srvyr::survey_mean(ag4, vartype = NULL),
-    ag5 = srvyr::survey_mean(ag5, vartype = NULL),
-    ag6 = srvyr::survey_mean(ag6, vartype = NULL),
-    ag7 = srvyr::survey_mean(ag7, vartype = NULL)
-  ) |>
-  dplyr::mutate(
-    ag1 = ag1 * tot,
-    ag2 = ag2 * tot,
-    ag3 = ag3 * tot,
-    ag4 = ag4 * tot,
-    ag5 = ag5 * tot,
-    ag6 = ag6 * tot,
-    ag7 = ag7 * tot
-  ) |>
-  dplyr::ungroup() |>
-  dplyr::select(-age_group, -rel2, -tot)
-
-amainrels <- atotrels[1:7, ]
-acasrels <- atotrels[8:14, ]
-amainprops <- amainrels / sum(amainrels)
-acasprops <- acasrels / sum(acasrels)
-
-main_ag_mixmat <- matrix_symmetrical(amainprops)
-casual_ag_mixmat <- matrix_symmetrical(acasprops)
-
-out$main$mixmat$age_group <- main_ag_mixmat
-out$casual$mixmat$age_group <- casual_ag_mixmat
-
+out$casual$duration$by_age_group <- c_durs_age_group * (365 / 12)
 
 # save out as yaml
 params_name <- "nw_params.yaml"
