@@ -117,6 +117,17 @@ out$prediction_pop$agesq <- prediction_pop$agesq
 out$prediction_pop$age_group <- prediction_pop$age_group
 out$prediction_pop$race <- prediction_pop$race
 
+#observed
+
+wsvy |>
+  group_by(age, race) |>
+  reframe(
+    deg_main = srvyr::survey_mean(deg_main, vartype = "ci"),
+    deg_casual = srvyr::survey_mean(deg_casual, vartype = "ci")
+  ) |>
+  write.csv("input/params/nsfg_degs.csv")
+
+
 # -------------------------------------------------------------------------
 # Fit GLMs for main, casual, inst degree, olderpartner (nodefactor) -------
 # -------------------------------------------------------------------------
