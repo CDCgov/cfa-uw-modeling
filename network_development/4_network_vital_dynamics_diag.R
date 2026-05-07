@@ -17,24 +17,35 @@ yaml_params_loc <- here::here(
   "nw_params.yaml"
 )
 
-ncores <- parallel::detectCores()
-nsims <- parallel::detectCores()
+ncores <- parallel::detectCores() - 1
+nsims <- 10
 years <- 5
 nsteps <- 365 * years
 
 # specify params & simulation controls
 params <- EpiModel::param.net(
-  units_per_year = 365,
-  inf.prob = 0,
-  rec.rate = 1 / 60,
-  act.rate = 1,
+  # Population parameters
   vital_dynamics = TRUE,
+  units_per_year = 365,
   exit_age = 50,
   entry_age = 15,
   arrivalType = "departures",
   entry_female_prob = 0.5,
   entry_race_names = c("B", "H", "O", "W"),
-  entry_race_probs = c(0.12, 0.19, 0.11, 0.58)
+  entry_race_probs = c(0.12, 0.19, 0.11, 0.58),
+  # Pathogen-related parameters
+  inf_prob_mtf = 0.5,
+  inf_prob_ftm = 0.5,
+  sympt_inf_modifier = 2,
+  sympt_prob_m = 0.4,
+  sympt_prob_f = 0.6,
+  inf_dur_m = 150,
+  inf_dur_f = 300,
+  rec_state = "s",
+  # Behavioral parameters
+  act_rate_vec = c(1.14, 1.69, 1.65, 1.54, 1.44, 1.43, 1.20),
+  cond_prob_vec = 0,
+  cond_eff = 0
 )
 
 inits <- EpiModel::init.net(i.num = 0)
@@ -47,16 +58,18 @@ controls <- EpiModel::control.net(
   save.nwstats = TRUE,
   tergmLite = TRUE,
   resimulate.network = TRUE,
+  # Modules to run each time step
   dat.updates = epimodelcfa::resimnet_updates_sti,
-  initialize.FUN = EpiModel::initialize.net,
+  initialize.FUN = epimodelcfa::mod_sti_initialize,
   resim_nets.FUN = EpiModel::resim_nets,
   summary_nets.FUN = EpiModel::summary_nets,
   departures.FUN = epimodelcfa::mod_departures,
   arrivals.FUN = epimodelcfa::mod_arrivals,
+  aging.FUN = epimodelcfa::mod_aging,
+  infection.FUN = epimodelcfa::mod_infection,
+  recovery.FUN = epimodelcfa::mod_mgen_recovery,
   nwupdate.FUN = EpiModel::nwupdate.net,
   prevalence.FUN = EpiModel::prevalence.net,
-  aging.FUN = epimodelcfa::mod_aging,
-  edge_tracker.FUN = epimodelcfa::track_edges,
   verbose.FUN = EpiModel::verbose.net,
   epi.by = c("female"),
   tergmLite.track.duration = TRUE,
